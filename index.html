@@ -1,4 +1,4 @@
-<!-- Index.html — atualizada: compatível Apps Script (google.script.run) e Web App (fetch) -->
+<!-- index.html — pronto para GitHub Pages (substitua SCRIPT_URL) -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -58,14 +58,7 @@
     .next-area { display:flex; justify-content:space-between; align-items:center; margin-top:12px; gap:10px; flex-wrap:wrap; }
     .next-btn { background: linear-gradient(90deg,var(--accent), #2fb6ff); border:none; color:#012; font-weight:900; padding:12px 16px; border-radius:12px; cursor:pointer; font-size:16px; }
     .next-btn:disabled { opacity:0.6; cursor:not-allowed; }
-
-    /* ADDED: versão menor do botão "next-btn" para o Carregar tópico */
-    .next-btn.small-btn {
-      padding: 8px 12px;
-      font-size: 14px;
-      border-radius: 10px;
-    }
-
+    .next-btn.small-btn { padding: 8px 12px; font-size: 14px; border-radius: 10px; }
     .card-small { padding:10px; border-radius:10px; background:rgba(255,255,255,0.03); margin-bottom:8px; }
     .flashcard { perspective:1000px; cursor:pointer; }
     .flash-inner { transition: transform .5s; transform-style: preserve-3d; position:relative; min-height:120px; }
@@ -166,187 +159,83 @@
   </div>
 
 <script>
-  // Dados injetados pelo Apps Script (caso estejam presentes)
-  const TEMPLATE_QUESTIONS = <?!= JSON.stringify(questions) ?> || null;
-  const TEMPLATE_STUDIES = <?!= JSON.stringify(studies) ?> || [];
-  const TEMPLATE_QUIZ_SIZE = <?!= quizSize ?> || 20;
+  // fallback local (quando hospedado externamente)
+  const TEMPLATE_QUESTIONS = []; // vazio — o front buscará do Web App
+  const TEMPLATE_STUDIES = [];
+  const TEMPLATE_QUIZ_SIZE = 20;
 
-  // ---------- ADD: URL do Web App (quando hospedar externamente pelo Pages)
-  // Se estiver servindo o HTML via Apps Script (HtmlService) NÃO precisa alterar nada.
-  // Se hospedar externamente (GitHub Pages), substitua o placeholder abaixo pela URL do seu Web App (o /exec).
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyUhb-77zcmY0PfiYlRRlRSOxTRgI1uTPnWtk26b6yiuF4RtC0jqjWsqmTPch-cz8FyyA/exec';
-  // -----------------------------------------------------------------------------
+  // Substitua pela URL do seu Web App Apps Script (copie do Deploy → Web app)
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxy8N_6iMbyJMJSRxbAfH_hOGSrTl6kuFrICdFFjy-qCcjvnpRh475vZn259fhHuSl0tQ/exec';
 
-  // Normalização do quiz size
   const QUIZ_SIZE = parseInt(TEMPLATE_QUIZ_SIZE, 10) || 20;
 
-  // Estado
-  let POOL = [];            // array de perguntas carregadas (objetos)
+  let POOL = [];
   let currentIndex = 0;
   let score = 0;
   let errors = [];
   let quizStarted = false;
 
-  // Keys e persistência
   const SOUND_KEY = 'quiz_sound_on';
   const SCALE_KEY = 'quiz_card_scale';
   const BEST_KEY = 'quiz_best_record';
 
-  // escala
   const scaleMin = 0.8, scaleMax = 1.6, scaleStep = 0.05;
 
-  /***** ----------------- Helpers para compatibilidade de chaves -----------------*****/
-  function q_text(q){
-    return q.pergunta || q.question || q.Pergunta || q.Question || '';
-  }
-  function q_topic(q){
-    return q.materia || q.materia || q.Matéria || q.Materia || q.topic || q.materia || '';
-  }
-  function q_expl(q){
-    return q.explicacao || q.explanation || q.Explicacao || q.Explanation || q.explicacao || '';
-  }
-  function q_answer_letter(q){
-    const a = (q.resposta || q.answer || q.Resposta || q.Answer || '').toString().trim();
-    if (!a) return '';
-    return a.substr(0,1).toUpperCase();
-  }
-  function q_option(q, letter){
-    const up = q[letter.toUpperCase()];
-    if (up !== undefined && up !== null && up !== '') return up;
-    const low = q[letter.toLowerCase()];
-    if (low !== undefined && low !== null && low !== '') return low;
-    return '';
-  }
+  function q_text(q){ return q.pergunta || q.question || ''; }
+  function q_topic(q){ return q.materia || q.topic || ''; }
+  function q_expl(q){ return q.explicacao || q.explanation || ''; }
+  function q_answer_letter(q){ const a = (q.resposta || q.answer || '').toString().trim(); if(!a) return ''; return a.substr(0,1).toUpperCase(); }
+  function q_option(q, letter){ const up = q[letter.toUpperCase()]; if (up !== undefined && up !== null && up !== '') return up; const low = q[letter.toLowerCase()]; if (low !== undefined && low !== null && low !== '') return low; return ''; }
 
-  /***** ----------------- Environment helpers -----------------*****/
-  function hasGoogleRun(){
-    return (typeof google !== 'undefined' && google && google.script && typeof google.script.run !== 'undefined');
-  }
+  function hasGoogleRun(){ return false; } // hospedado externamente => false
 
-  // Wrapper: obter tópicos
   async function apiGetTopics(){
-    if (hasGoogleRun()){
-      return new Promise(resolve => {
-        try {
-          google.script.run.withFailureHandler(()=> resolve([])).withSuccessHandler(function(topics){
-            resolve(topics || []);
-          }).getTopics();
-        } catch(e){ resolve([]); }
-      });
-    } else {
-      // fetch via Web App
-      try {
-        if (!SCRIPT_URL || SCRIPT_URL.indexOf('REPLACE_WITH') !== -1) return TEMPLATE_STUDIES || [];
-        const resp = await fetch(`${SCRIPT_URL}?action=getTopics`);
-        const j = await resp.json();
-        return (j && j.ok) ? (j.topics || []) : [];
-      } catch(e){ console.error('apiGetTopics error', e); return []; }
-    }
+    try {
+      if (!SCRIPT_URL || SCRIPT_URL.indexOf('REPLACE_WITH') !== -1) return [];
+      const resp = await fetch(`${SCRIPT_URL}?action=getTopics`);
+      const j = await resp.json();
+      return (j && j.ok && Array.isArray(j.topics)) ? j.topics : [];
+    } catch(e){ console.error('apiGetTopics', e); return []; }
   }
 
-  // Wrapper: obter questões por tópico
   async function apiGetQuestionsByTopic(topic){
-    if (hasGoogleRun()){
-      return new Promise(resolve => {
-        try {
-          google.script.run.withFailureHandler(()=> resolve([])).withSuccessHandler(function(data){
-            resolve(data || []);
-          }).getQuestionsByTopic(topic || 'Todos');
-        } catch(e){ resolve([]); }
-      });
-    } else {
-      try {
-        if (!SCRIPT_URL || SCRIPT_URL.indexOf('REPLACE_WITH') !== -1) return [];
-        const resp = await fetch(`${SCRIPT_URL}?action=getQuestionsByTopic&topic=${encodeURIComponent(topic || 'Todos')}`);
-        const j = await resp.json();
-        return (j && j.ok && Array.isArray(j.questions)) ? j.questions : [];
-      } catch(e){ console.error('apiGetQuestionsByTopic error', e); return []; }
-    }
+    try {
+      if (!SCRIPT_URL || SCRIPT_URL.indexOf('REPLACE_WITH') !== -1) return [];
+      const resp = await fetch(`${SCRIPT_URL}?action=getQuestionsByTopic&topic=${encodeURIComponent(topic||'Todos')}`);
+      const j = await resp.json();
+      return (j && j.ok && Array.isArray(j.questions)) ? j.questions : [];
+    } catch(e){ console.error('apiGetQuestionsByTopic', e); return []; }
   }
 
-  // Wrapper: obter todas questões (para cartões)
   async function apiGetAllQuestions(){
-    if (hasGoogleRun()){
-      return new Promise(resolve => {
-        try {
-          google.script.run.withFailureHandler(()=> resolve([])).withSuccessHandler(function(data){
-            resolve(data || []);
-          }).getAllQuestions();
-        } catch(e){ resolve([]); }
-      });
-    } else {
-      try {
-        if (!SCRIPT_URL || SCRIPT_URL.indexOf('REPLACE_WITH') !== -1) return TEMPLATE_QUESTIONS || [];
-        const resp = await fetch(`${SCRIPT_URL}?action=getAllQuestions`);
-        const j = await resp.json();
-        return (j && j.ok && Array.isArray(j.questions)) ? j.questions : [];
-      } catch(e){ console.error('apiGetAllQuestions error', e); return []; }
-    }
+    try {
+      if (!SCRIPT_URL || SCRIPT_URL.indexOf('REPLACE_WITH') !== -1) return TEMPLATE_QUESTIONS || [];
+      const resp = await fetch(`${SCRIPT_URL}?action=getAllQuestions`);
+      const j = await resp.json();
+      return (j && j.ok && Array.isArray(j.questions)) ? j.questions : [];
+    } catch(e){ console.error('apiGetAllQuestions', e); return TEMPLATE_QUESTIONS || []; }
   }
 
-  // Wrapper: obter estudos (opcional — se o server tiver endpoint)
   async function apiGetStudies(){
-    if (hasGoogleRun()){
-      // If served via Apps Script and TEMPLATE_STUDIES is injected, prefer that (renderStudies uses TEMPLATE_STUDIES already).
-      // But keep a path in case there is a server method getStudies (not mandatory).
-      return new Promise(resolve => {
-        try {
-          if (typeof getStudies === 'function') {
-            google.script.run.withFailureHandler(()=> resolve(TEMPLATE_STUDIES || [])).withSuccessHandler(function(data){
-              resolve(data || TEMPLATE_STUDIES || []);
-            }).getStudies();
-          } else {
-            resolve(TEMPLATE_STUDIES || []);
-          }
-        } catch(e){ resolve(TEMPLATE_STUDIES || []); }
-      });
-    } else {
-      try {
-        if (!SCRIPT_URL || SCRIPT_URL.indexOf('REPLACE_WITH') !== -1) return TEMPLATE_STUDIES || [];
-        const resp = await fetch(`${SCRIPT_URL}?action=getStudies`);
-        const j = await resp.json();
-        return (j && j.ok && Array.isArray(j.studies)) ? j.studies : (TEMPLATE_STUDIES || []);
-      } catch(e){ console.error('apiGetStudies error', e); return TEMPLATE_STUDIES || []; }
-    }
+    try {
+      if (!SCRIPT_URL || SCRIPT_URL.indexOf('REPLACE_WITH') !== -1) return TEMPLATE_STUDIES || [];
+      const resp = await fetch(`${SCRIPT_URL}?action=getStudies`);
+      const j = await resp.json();
+      return (j && j.ok && Array.isArray(j.studies)) ? j.studies : (TEMPLATE_STUDIES || []);
+    } catch(e){ console.error('apiGetStudies', e); return TEMPLATE_STUDIES || []; }
   }
 
-  /***** ----------------- Scale controls -----------------*****/
-  function readSavedScale(){
-    const s = parseFloat(localStorage.getItem(SCALE_KEY));
-    if (!isNaN(s)) return Math.max(scaleMin, Math.min(scaleMax, s));
-    const css = getComputedStyle(document.documentElement).getPropertyValue('--card-scale');
-    return parseFloat(css) || 1.15;
-  }
-  function setScale(v){
-    v = Math.max(scaleMin, Math.min(scaleMax, Number(v)));
-    document.documentElement.style.setProperty('--card-scale', v.toFixed(2));
-    document.getElementById('scaleLabel').innerText = 'x' + v.toFixed(2);
-    localStorage.setItem(SCALE_KEY, v.toFixed(2));
-  }
+  function readSavedScale(){ const s = parseFloat(localStorage.getItem(SCALE_KEY)); if (!isNaN(s)) return Math.max(scaleMin, Math.min(scaleMax, s)); const css = getComputedStyle(document.documentElement).getPropertyValue('--card-scale'); return parseFloat(css) || 1.15; }
+  function setScale(v){ v = Math.max(scaleMin, Math.min(scaleMax, Number(v))); document.documentElement.style.setProperty('--card-scale', v.toFixed(2)); document.getElementById('scaleLabel').innerText = 'x' + v.toFixed(2); localStorage.setItem(SCALE_KEY, v.toFixed(2)); }
   document.getElementById('scaleUpBtn').addEventListener('click', ()=> setScale(readSavedScale() + scaleStep));
   document.getElementById('scaleDownBtn').addEventListener('click', ()=> setScale(readSavedScale() - scaleStep));
 
-  /***** ----------------- Fullscreen -----------------*****/
   const fullscreenBtn = document.getElementById('fullscreenBtn');
-  function updateFullscreenButton(){
-    const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
-    fullscreenBtn.innerText = isFs ? '🡼' : '⛶';
-  }
-  fullscreenBtn.addEventListener('click', async ()=>{
-    try {
-      if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-        if (document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen();
-        else if (document.documentElement.webkitRequestFullscreen) await document.documentElement.webkitRequestFullscreen();
-      } else {
-        if (document.exitFullscreen) await document.exitFullscreen();
-        else if (document.webkitExitFullscreen) await document.webkitExitFullscreen();
-      }
-    } catch(e){}
-  });
+  function updateFullscreenButton(){ const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement); fullscreenBtn.innerText = isFs ? '🡼' : '⛶'; }
+  fullscreenBtn.addEventListener('click', async ()=>{ try { if (!document.fullscreenElement && !document.webkitFullscreenElement) { if (document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen(); else if (document.documentElement.webkitRequestFullscreen) await document.documentElement.webkitRequestFullscreen(); } else { if (document.exitFullscreen) await document.exitFullscreen(); else if (document.webkitExitFullscreen) await document.webkitExitFullscreen(); } } catch(e){} });
   document.addEventListener('fullscreenchange', updateFullscreenButton);
   document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
 
-  /***** ----------------- Sound -----------------*****/
   function isSoundOn(){ return localStorage.getItem(SOUND_KEY) !== '0'; }
   function setSoundOn(v){ localStorage.setItem(SOUND_KEY, v ? '1' : '0'); updateSoundBtn(); }
   function updateSoundBtn(){ document.getElementById('soundToggle').innerText = isSoundOn() ? '🔊 Som: On' : '🔇 Som: Off'; }
@@ -360,7 +249,6 @@
   function playCorrect(){ playTone(880,120,'sine',0.06); }
   function playWrong(){ playTone(220,220,'sawtooth',0.08); }
 
-  /***** ----------------- Navigation & pages -----------------*****/
   function go(target){
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById(target).classList.add('active');
@@ -371,34 +259,18 @@
     if (target === 'quiz') { if (!quizStarted) showTopicSelection(); }
   }
 
-  /***** ----------------- STUDIES -----------------*****/
   async function renderStudies(){
     const container = document.getElementById('studyList');
     container.innerHTML = '';
-    // Prefer server-provided studies (via injection or API), fallback to TEMPLATE_STUDIES
-    let S = (typeof TEMPLATE_STUDIES !== 'undefined' && TEMPLATE_STUDIES && TEMPLATE_STUDIES.length) ? TEMPLATE_STUDIES : [];
-    try {
-      const fromApi = await apiGetStudies();
-      if (Array.isArray(fromApi) && fromApi.length) S = fromApi;
-    } catch(e){}
-    if (!S || S.length === 0){
-      container.innerHTML = '<div class="small">Nenhum conteúdo de estudo (adicione aba "Estudos" com colunas: Tópico | Conteúdo).</div>';
-      return;
-    }
-    S.forEach((s,i)=>{
-      const d = document.createElement('details'); d.className='summary';
-      const sum = document.createElement('summary'); sum.innerText = s.topico || s.topic || `Tópico ${i+1}`; d.appendChild(sum);
-      const div = document.createElement('div'); div.style.padding='8px 6px'; div.style.color='#dfeff5';
-      div.innerHTML = (s.conteudo || s.conteudo || s.content || '').toString().replace(/\n/g,'<br>');
-      d.appendChild(div); container.appendChild(d);
-    });
+    let S = (TEMPLATE_STUDIES && TEMPLATE_STUDIES.length) ? TEMPLATE_STUDIES : [];
+    try { const fromApi = await apiGetStudies(); if (Array.isArray(fromApi) && fromApi.length) S = fromApi; } catch(e){}
+    if (!S || S.length === 0){ container.innerHTML = '<div class="small">Nenhum conteúdo de estudo (adicione aba "Estudos" com colunas: Tópico | Conteúdo).</div>'; return; }
+    S.forEach((s,i)=>{ const d = document.createElement('details'); d.className='summary'; const sum = document.createElement('summary'); sum.innerText = s.topico || s.topic || `Tópico ${i+1}`; d.appendChild(sum); const div = document.createElement('div'); div.style.padding='8px 6px'; div.style.color='#dfeff5'; div.innerHTML = (s.conteudo || s.content || '').toString().replace(/\n/g,'<br>'); d.appendChild(div); container.appendChild(d); });
   }
 
-  /***** ----------------- QUIZ (sem cronômetro) -----------------*****/
   const quizSizeLabel = document.getElementById('quizSizeLabel');
   quizSizeLabel.innerText = QUIZ_SIZE || 20;
 
-  // UI elements
   const topicSelect = document.getElementById('topicSelect');
   const loadTopicBtn = document.getElementById('loadTopicBtn');
   const nextBtn = document.getElementById('nextBtn');
@@ -411,91 +283,38 @@
   const btnRestart = document.getElementById('btnRestart');
 
   loadTopicBtn.addEventListener('click', ()=> loadTopicQuestions(topicSelect.value));
-  nextBtn.addEventListener('click', ()=> { // próxima questão manualmente
-    if (!quizStarted) return;
-    currentIndex++;
-    renderQuestion();
-  });
+  nextBtn.addEventListener('click', ()=> { if (!quizStarted) return; currentIndex++; renderQuestion(); });
 
-  async function showTopicSelection(){
-    // fetch topics via wrapper (google.script.run or fetch)
-    const topics = await apiGetTopics();
-    populateTopicSelect(topics || []);
-  }
+  async function showTopicSelection(){ const topics = await apiGetTopics(); populateTopicSelect(topics || []); }
 
   function populateTopicSelect(topics){
     topicSelect.innerHTML = '';
     const optAll = document.createElement('option'); optAll.value='Todos'; optAll.textContent='Todos'; topicSelect.appendChild(optAll);
-    if (topics && topics.length){
-      topics.forEach(t => {
-        const o = document.createElement('option'); o.value = t; o.textContent = t; topicSelect.appendChild(o);
-      });
-    }
-    // preselect first topic if any from injected TEMPLATE_QUESTIONS
-    if ((TEMPLATE_QUESTIONS && TEMPLATE_QUESTIONS.length) && topicSelect.options.length > 1){
-      const firstTopic = (TEMPLATE_QUESTIONS[0].materia || TEMPLATE_QUESTIONS[0].Matéria || TEMPLATE_QUESTIONS[0].topic || '').toString();
-      if (firstTopic) {
-        for (const o of topicSelect.options) {
-          if (o.value === firstTopic) { o.selected = true; break; }
-        }
-      }
-    }
+    if (topics && topics.length){ topics.forEach(t => { const o = document.createElement('option'); o.value = t; o.textContent = t; topicSelect.appendChild(o); }); }
   }
 
   async function loadTopicQuestions(topic){
-    // load via wrapper (keeps compatibility)
     qEl.innerText = 'Carregando perguntas...';
     try {
       const data = await apiGetQuestionsByTopic(topic || 'Todos');
-      // data may be array directly
       POOL = (Array.isArray(data) && data.length) ? data.slice() : [];
-      if (!POOL.length && TEMPLATE_QUESTIONS && TEMPLATE_QUESTIONS.length){
-        // fallback to injected template questions if server returns empty
-        POOL = TEMPLATE_QUESTIONS.slice(0, QUIZ_SIZE);
-      }
-      // shuffle
+      if (!POOL.length && TEMPLATE_QUESTIONS && TEMPLATE_QUESTIONS.length) POOL = TEMPLATE_QUESTIONS.slice(0, QUIZ_SIZE);
       for (let i = POOL.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [POOL[i], POOL[j]] = [POOL[j], POOL[i]]; }
       POOL = POOL.slice(0, QUIZ_SIZE);
-      currentIndex = 0; score = 0; errors = []; quizStarted = true;
-      btnRestart.style.display = 'none';
-      renderQuestion();
-    } catch(err){
-      console.error('Erro ao carregar questões:', err);
-      qEl.innerText = 'Erro ao carregar questões. Verifique a conexão.';
-    }
+      currentIndex = 0; score = 0; errors = []; quizStarted = true; btnRestart.style.display = 'none'; renderQuestion();
+    } catch(err){ console.error('Erro ao carregar questões:', err); qEl.innerText = 'Erro ao carregar questões. Verifique a conexão.'; }
   }
 
   function renderQuestion(){
     explainEl.style.display = 'none';
     nextBtn.disabled = true;
-    if (!POOL || POOL.length === 0) {
-      qEl.innerText = 'Nenhuma questão disponível. Carregue outro tópico ou verifique a planilha.';
-      optsDiv.innerHTML = '';
-      progressBar.style.width = '0%';
-      progressInfo.innerText = '0 / 0';
-      progressText.innerText = '';
-      btnRestart.style.display = 'inline-block';
-      quizStarted = false;
-      return;
-    }
+    if (!POOL || POOL.length === 0) { qEl.innerText = 'Nenhuma questão disponível. Carregue outro tópico ou verifique a planilha.'; optsDiv.innerHTML = ''; progressBar.style.width = '0%'; progressInfo.innerText = '0 / 0'; progressText.innerText = ''; btnRestart.style.display = 'inline-block'; quizStarted = false; return; }
     if (currentIndex >= POOL.length) { finishQuiz(); return; }
     const q = POOL[currentIndex];
     qEl.style.opacity = 0;
     setTimeout(()=>{ qEl.innerText = `📘 ${q_topic(q) || ''}\n${q_text(q)}`; qEl.style.opacity = 1; }, 120);
-
-    // build options
     optsDiv.innerHTML = '';
-    ['A','B','C','D'].forEach(letter => {
-      const txt = q_option(q, letter);
-      if (!txt) return;
-      const btn = document.createElement('button');
-      btn.className = 'opt';
-      btn.id = 'opt_' + letter;
-      btn.innerText = `${letter}) ${txt}`;
-      btn.onclick = ()=> selectOption(letter);
-      optsDiv.appendChild(btn);
-    });
-
+    ['A','B','C','D'].forEach(letter => { const txt = q_option(q, letter); if (!txt) return; const btn = document.createElement('button'); btn.className = 'opt'; btn.id = 'opt_' + letter; btn.innerText = `${letter}) ${txt}`; btn.onclick = ()=> selectOption(letter); optsDiv.appendChild(btn); });
     updateProgressUI();
   }
 
@@ -504,137 +323,34 @@
     const q = POOL[currentIndex];
     const correct = q_answer_letter(q);
     const chosen = letter.toUpperCase();
-    // disable buttons
     document.querySelectorAll('.opt').forEach(el => el.disabled = true);
-    // mark classes
-    if (correct) {
-      const elCorrect = document.getElementById('opt_' + correct);
-      if (elCorrect) elCorrect.classList.add('correct');
-    }
+    if (correct) { const elCorrect = document.getElementById('opt_' + correct); if (elCorrect) elCorrect.classList.add('correct'); }
     const elChosen = document.getElementById('opt_' + chosen);
     if (elChosen) {
-      if (chosen === correct) {
-        elChosen.classList.add('correct');
-        playCorrect();
-        score++;
-      } else {
-        elChosen.classList.add('wrong');
-        playWrong();
-        errors.push(q);
-      }
-    } else {
-      // chosen button not found (shouldn't happen)
-      if (chosen !== correct) { playWrong(); errors.push(q); }
-      else playCorrect();
-    }
-
-    // show explanation and enable next button
+      if (chosen === correct) { elChosen.classList.add('correct'); playCorrect(); score++; }
+      else { elChosen.classList.add('wrong'); playWrong(); errors.push(q); }
+    } else { if (chosen !== correct) { playWrong(); errors.push(q); } else playCorrect(); }
     const title = (chosen === correct) ? '✅ Correto!' : ('❌ Errado! Resposta: ' + (correct || '—'));
     showExplanation(title, q_expl(q));
     nextBtn.disabled = false;
   }
 
-  function showExplanation(title, explanation){
-    explainEl.style.display = 'block';
-    explainEl.innerHTML = `<strong>${title}</strong><div style="margin-top:8px;color:#dfeff5">${explanation || ''}</div>`;
-  }
+  function showExplanation(title, explanation){ explainEl.style.display = 'block'; explainEl.innerHTML = `<strong>${title}</strong><div style="margin-top:8px;color:#dfeff5">${explanation || ''}</div>`; }
 
-  function updateProgressUI(){
-    const total = POOL.length || 0;
-    const pct = total ? Math.round((currentIndex / total) * 100) : 0;
-    progressBar.style.width = pct + '%';
-    progressInfo.innerText = `${currentIndex + 1} / ${total}`;
-    progressText.innerText = `Pontos: ${score}`;
-  }
+  function updateProgressUI(){ const total = POOL.length || 0; const pct = total ? Math.round((currentIndex / total) * 100) : 0; progressBar.style.width = pct + '%'; progressInfo.innerText = `${currentIndex + 1} / ${total}`; progressText.innerText = `Pontos: ${score}`; }
 
-  function finishQuiz(){
-    quizStarted = false;
-    const total = POOL.length || 1;
-    const pct = Math.round((score / total) * 100);
-    const badge = pct >= 80 ? '🏆' : pct >= 60 ? '🎉' : pct >= 40 ? '👍' : '📘';
-    const finalTitle = `${badge} Você acertou ${score} de ${total} (${pct}%)`;
-    qEl.innerText = finalTitle;
-    optsDiv.innerHTML = '';
-    explainEl.style.display = 'block';
-    const rec = saveRecord(score, total);
-    explainEl.innerHTML = `<div style="color:#dfeff5">${rec && rec.isNew ? '🎯 Novo recorde! ' : ''}${rec && rec.record ? 'Seu recorde: ' + rec.record.score + '/' + rec.record.total + ' ('+rec.record.pct+'%)' : ''}</div>`;
-    btnRestart.style.display = 'inline-block';
-    progressBar.style.width = '100%';
-  }
+  function finishQuiz(){ quizStarted = false; const total = POOL.length || 1; const pct = Math.round((score / total) * 100); const badge = pct >= 80 ? '🏆' : pct >= 60 ? '🎉' : pct >= 40 ? '👍' : '📘'; const finalTitle = `${badge} Você acertou ${score} de ${total} (${pct}%)`; qEl.innerText = finalTitle; optsDiv.innerHTML = ''; explainEl.style.display = 'block'; const rec = saveRecord(score, total); explainEl.innerHTML = `<div style="color:#dfeff5">${rec && rec.isNew ? '🎯 Novo recorde! ' : ''}${rec && rec.record ? 'Seu recorde: ' + rec.record.score + '/' + rec.record.total + ' ('+rec.record.pct+'%)' : ''}</div>`; btnRestart.style.display = 'inline-block'; progressBar.style.width = '100%'; }
 
-  function restartQuiz(){ // carrega novamente mesmo tópico
-    if (topicSelect && topicSelect.value) loadTopicQuestions(topicSelect.value);
-    else loadTopicQuestions('Todos');
-  }
+  function restartQuiz(){ if (topicSelect && topicSelect.value) loadTopicQuestions(topicSelect.value); else loadTopicQuestions('Todos'); }
 
-  /***** ----------------- Local record (localStorage) -----------------*****/
-  function saveRecord(score, total){
-    try {
-      const pct = Math.round((score/total)*100);
-      const now = new Date().toISOString();
-      const current = {score: score, total: total, pct: pct, when: now};
-      const prev = JSON.parse(localStorage.getItem(BEST_KEY) || 'null');
-      if (!prev || pct > prev.pct) {
-        localStorage.setItem(BEST_KEY, JSON.stringify(current));
-        return {isNew:true, record: current, prev: prev};
-      } else {
-        return {isNew:false, record: prev};
-      }
-    } catch(e){ return null; }
-  }
+  function saveRecord(score, total){ try { const pct = Math.round((score/total)*100); const now = new Date().toISOString(); const current = {score: score, total: total, pct: pct, when: now}; const prev = JSON.parse(localStorage.getItem(BEST_KEY) || 'null'); if (!prev || pct > prev.pct) { localStorage.setItem(BEST_KEY, JSON.stringify(current)); return {isNew:true, record: current, prev: prev}; } else { return {isNew:false, record: prev}; } } catch(e){ return null; } }
   function getRecord(){ try { return JSON.parse(localStorage.getItem(BEST_KEY) || 'null'); } catch(e){ return null; } }
   function showBestRecord(){ const rec = getRecord(); const el = document.getElementById('bestRecord'); if (!rec) el.innerText = 'Ainda sem recorde. Faça um quiz e apareça aqui!'; else el.innerText = `Seu recorde: ${rec.score}/${rec.total} (${rec.pct}%) — em ${new Date(rec.when).toLocaleString()}`; }
 
-  /***** ----------------- CARTÕES (flashcards) -----------------*****/
-  async function renderCards(){
-    const container = document.getElementById('cardsContainer');
-    container.innerHTML = '';
-    try {
-      const all = await apiGetAllQuestions();
-      const list = (Array.isArray(all) && all.length) ? all : (TEMPLATE_QUESTIONS || []);
-      makeCards(list);
-    } catch(e){
-      const fallback = TEMPLATE_QUESTIONS || [];
-      makeCards(fallback);
-    }
-  }
+  async function renderCards(){ const container = document.getElementById('cardsContainer'); container.innerHTML = ''; try { const all = await apiGetAllQuestions(); const list = (Array.isArray(all) && all.length) ? all : (TEMPLATE_QUESTIONS || []); makeCards(list); } catch(e){ makeCards(TEMPLATE_QUESTIONS || []); } }
+  function makeCards(list){ const container = document.getElementById('cardsContainer'); container.innerHTML = ''; if (!list || list.length === 0) { container.innerHTML = '<div class="small">Nenhum cartão disponível.</div>'; return; } for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; } list.forEach(q=>{ const wrapper = document.createElement('div'); wrapper.className = 'flashcard card-small'; const inner = document.createElement('div'); inner.className = 'flash-inner'; const front = document.createElement('div'); front.className = 'flash-front'; const back = document.createElement('div'); back.className = 'flash-back'; front.innerHTML = `<div style="font-size:12px;color:#dfeff5">${q_topic(q) || ''}</div><div style="font-weight:800;margin-top:8px">${q_text(q)}</div><div style="margin-top:8px;font-size:13px;color:#bfeadf">Clique para ver explicação</div>`; back.innerHTML = `<div style="font-size:12px;color:#dfeff5">${q_topic(q) || ''}</div><div style="font-weight:800;margin-top:8px">Resposta: ${q_answer_letter(q) || '—'}</div><div style="margin-top:8px;color:#dfeff5">${q_expl(q) || ''}</div>`; inner.appendChild(front); inner.appendChild(back); wrapper.appendChild(inner); wrapper.addEventListener('click', ()=> inner.classList.toggle('flipped')); container.appendChild(wrapper); }); }
 
-  function makeCards(list){
-    const container = document.getElementById('cardsContainer');
-    container.innerHTML = '';
-    if (!list || list.length === 0) { container.innerHTML = '<div class="small">Nenhum cartão disponível.</div>'; return; }
-    // shuffle
-    for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; }
-    list.forEach(q=>{
-      const wrapper = document.createElement('div'); wrapper.className = 'flashcard card-small';
-      const inner = document.createElement('div'); inner.className = 'flash-inner';
-      const front = document.createElement('div'); front.className = 'flash-front';
-      const back = document.createElement('div'); back.className = 'flash-back';
-      front.innerHTML = `<div style="font-size:12px;color:#dfeff5">${q_topic(q) || ''}</div><div style="font-weight:800;margin-top:8px">${q_text(q)}</div><div style="margin-top:8px;font-size:13px;color:#bfeadf">Clique para ver explicação</div>`;
-      back.innerHTML = `<div style="font-size:12px;color:#dfeff5">${q_topic(q) || ''}</div><div style="font-weight:800;margin-top:8px">Resposta: ${q_answer_letter(q) || '—'}</div><div style="margin-top:8px;color:#dfeff5">${q_expl(q) || ''}</div>`;
-      inner.appendChild(front); inner.appendChild(back);
-      wrapper.appendChild(inner);
-      wrapper.addEventListener('click', ()=> inner.classList.toggle('flipped'));
-      container.appendChild(wrapper);
-    });
-  }
-
-  /***** ----------------- Inicialização -----------------*****/
-  (function init(){
-    // aplicar escala salva
-    setScale(readSavedScale());
-    // renderizar estudos
-    renderStudies();
-    // preencher topics (async) - showTopicSelection will call server
-    showTopicSelection();
-    // show record
-    showBestRecord();
-    // desbloqueio audio por clique para permitir webaudio
-    window.addEventListener('click', function unlock(){ try{ ensureAudio(); }catch(e){} window.removeEventListener('click', unlock); }, { once:true });
-    // exibir quiz size
-    document.getElementById('quizSizeLabel').innerText = QUIZ_SIZE || 20;
-  })();
-
+  (function init(){ setScale(readSavedScale()); renderStudies(); showTopicSelection(); showBestRecord(); window.addEventListener('click', function unlock(){ try{ ensureAudio(); }catch(e){} window.removeEventListener('click', unlock); }, { once:true }); document.getElementById('quizSizeLabel').innerText = QUIZ_SIZE || 20; })();
 </script>
 </body>
 </html>
