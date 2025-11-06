@@ -1,4 +1,4 @@
-<!-- index.html (versão para hospedar externamente: GitHub Pages / Netlify) -->
+<!-- Index.html — atualizada: compatível Apps Script (google.script.run) e Web App (fetch) -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -59,7 +59,7 @@
     .next-btn { background: linear-gradient(90deg,var(--accent), #2fb6ff); border:none; color:#012; font-weight:900; padding:12px 16px; border-radius:12px; cursor:pointer; font-size:16px; }
     .next-btn:disabled { opacity:0.6; cursor:not-allowed; }
 
-    /* versão menor do botão "next-btn" para o Carregar tópico */
+    /* ADDED: versão menor do botão "next-btn" para o Carregar tópico */
     .next-btn.small-btn {
       padding: 8px 12px;
       font-size: 14px;
@@ -166,35 +166,19 @@
   </div>
 
 <script>
-  // ---------- Dados locais / fallback (quando hospedado externamente) ----------
-  const TEMPLATE_QUESTIONS = [
-    {
-      materia: "Legislação",
-      pergunta: "Qual é o artigo da Constituição que trata dos direitos da criança e do adolescente?",
-      A: "Art. 225",
-      B: "Art. 227",
-      C: "Art. 230",
-      D: "Art. 231",
-      resposta: "B",
-      explicacao: "O artigo 227 da Constituição Federal trata dos direitos da criança e do adolescente."
-    },
-    {
-      materia: "Trânsito",
-      pergunta: "Qual órgão coordena o Sistema Nacional de Trânsito?",
-      A: "DETRAN",
-      B: "POLÍCIA RODOVIÁRIA",
-      C: "DENATRAN",
-      D: "CONTRAN",
-      resposta: "C",
-      explicacao: "O DENATRAN é o órgão executivo do Sistema Nacional de Trânsito."
-    }
-  ];
-  const TEMPLATE_STUDIES = [];
-  const TEMPLATE_QUIZ_SIZE = 20;
+  // Dados injetados pelo Apps Script (caso estejam presentes)
+  const TEMPLATE_QUESTIONS = <?!= JSON.stringify(questions) ?> || null;
+  const TEMPLATE_STUDIES = <?!= JSON.stringify(studies) ?> || [];
+  const TEMPLATE_QUIZ_SIZE = <?!= quizSize ?> || 20;
 
-  // ---------- ADICIONE AQUI a URL do seu Web App (obtida no Deploy do Apps Script) ----------
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzLZPIzgvn3Vow1CUjVZJSxrMfi5-hHAB6SnLdfY5sYp4LXol5OMykhFBjEl2DpPNwwUQ/exec'; // ex: https://script.google.com/macros/s/SEU_DEPLOY_ID/exec
-  // ------------------------------------------------------------------------------
+  // ---------- ADD: URL do Web App (quando hospedar externamente pelo Pages)
+  // Se estiver servindo o HTML via Apps Script (HtmlService) NÃO precisa alterar nada.
+  // Se hospedar externamente (GitHub Pages), substitua o placeholder abaixo pela URL do seu Web App (o /exec).
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzepoYqYd9GSYB-QbpNvRRW14WuimTlmyVUsC2H3EomkXJYpknoU5KTHb8GPNXw5xghAw/exec';
+  // -----------------------------------------------------------------------------
+
+  // Normalização do quiz size
+  const QUIZ_SIZE = parseInt(TEMPLATE_QUIZ_SIZE, 10) || 20;
 
   // Estado
   let POOL = [];            // array de perguntas carregadas (objetos)
@@ -211,7 +195,7 @@
   // escala
   const scaleMin = 0.8, scaleMax = 1.6, scaleStep = 0.05;
 
-  /***** ----------------- Helpers para compatibilidade de chaves ----------------- *****/
+  /***** ----------------- Helpers para compatibilidade de chaves -----------------*****/
   function q_text(q){
     return q.pergunta || q.question || q.Pergunta || q.Question || '';
   }
@@ -232,6 +216,98 @@
     const low = q[letter.toLowerCase()];
     if (low !== undefined && low !== null && low !== '') return low;
     return '';
+  }
+
+  /***** ----------------- Environment helpers -----------------*****/
+  function hasGoogleRun(){
+    return (typeof google !== 'undefined' && google && google.script && typeof google.script.run !== 'undefined');
+  }
+
+  // Wrapper: obter tópicos
+  async function apiGetTopics(){
+    if (hasGoogleRun()){
+      return new Promise(resolve => {
+        try {
+          google.script.run.withFailureHandler(()=> resolve([])).withSuccessHandler(function(topics){
+            resolve(topics || []);
+          }).getTopics();
+        } catch(e){ resolve([]); }
+      });
+    } else {
+      // fetch via Web App
+      try {
+        if (!SCRIPT_URL || SCRIPT_URL.indexOf('REPLACE_WITH') !== -1) return TEMPLATE_STUDIES || [];
+        const resp = await fetch(`${SCRIPT_URL}?action=getTopics`);
+        const j = await resp.json();
+        return (j && j.ok) ? (j.topics || []) : [];
+      } catch(e){ console.error('apiGetTopics error', e); return []; }
+    }
+  }
+
+  // Wrapper: obter questões por tópico
+  async function apiGetQuestionsByTopic(topic){
+    if (hasGoogleRun()){
+      return new Promise(resolve => {
+        try {
+          google.script.run.withFailureHandler(()=> resolve([])).withSuccessHandler(function(data){
+            resolve(data || []);
+          }).getQuestionsByTopic(topic || 'Todos');
+        } catch(e){ resolve([]); }
+      });
+    } else {
+      try {
+        if (!SCRIPT_URL || SCRIPT_URL.indexOf('REPLACE_WITH') !== -1) return [];
+        const resp = await fetch(`${SCRIPT_URL}?action=getQuestionsByTopic&topic=${encodeURIComponent(topic || 'Todos')}`);
+        const j = await resp.json();
+        return (j && j.ok && Array.isArray(j.questions)) ? j.questions : [];
+      } catch(e){ console.error('apiGetQuestionsByTopic error', e); return []; }
+    }
+  }
+
+  // Wrapper: obter todas questões (para cartões)
+  async function apiGetAllQuestions(){
+    if (hasGoogleRun()){
+      return new Promise(resolve => {
+        try {
+          google.script.run.withFailureHandler(()=> resolve([])).withSuccessHandler(function(data){
+            resolve(data || []);
+          }).getAllQuestions();
+        } catch(e){ resolve([]); }
+      });
+    } else {
+      try {
+        if (!SCRIPT_URL || SCRIPT_URL.indexOf('REPLACE_WITH') !== -1) return TEMPLATE_QUESTIONS || [];
+        const resp = await fetch(`${SCRIPT_URL}?action=getAllQuestions`);
+        const j = await resp.json();
+        return (j && j.ok && Array.isArray(j.questions)) ? j.questions : [];
+      } catch(e){ console.error('apiGetAllQuestions error', e); return []; }
+    }
+  }
+
+  // Wrapper: obter estudos (opcional — se o server tiver endpoint)
+  async function apiGetStudies(){
+    if (hasGoogleRun()){
+      // If served via Apps Script and TEMPLATE_STUDIES is injected, prefer that (renderStudies uses TEMPLATE_STUDIES already).
+      // But keep a path in case there is a server method getStudies (not mandatory).
+      return new Promise(resolve => {
+        try {
+          if (typeof getStudies === 'function') {
+            google.script.run.withFailureHandler(()=> resolve(TEMPLATE_STUDIES || [])).withSuccessHandler(function(data){
+              resolve(data || TEMPLATE_STUDIES || []);
+            }).getStudies();
+          } else {
+            resolve(TEMPLATE_STUDIES || []);
+          }
+        } catch(e){ resolve(TEMPLATE_STUDIES || []); }
+      });
+    } else {
+      try {
+        if (!SCRIPT_URL || SCRIPT_URL.indexOf('REPLACE_WITH') !== -1) return TEMPLATE_STUDIES || [];
+        const resp = await fetch(`${SCRIPT_URL}?action=getStudies`);
+        const j = await resp.json();
+        return (j && j.ok && Array.isArray(j.studies)) ? j.studies : (TEMPLATE_STUDIES || []);
+      } catch(e){ console.error('apiGetStudies error', e); return TEMPLATE_STUDIES || []; }
+    }
   }
 
   /***** ----------------- Scale controls -----------------*****/
@@ -296,26 +372,31 @@
   }
 
   /***** ----------------- STUDIES -----------------*****/
-  function renderStudies(){
+  async function renderStudies(){
     const container = document.getElementById('studyList');
     container.innerHTML = '';
-    const S = (typeof TEMPLATE_STUDIES !== 'undefined' && TEMPLATE_STUDIES && TEMPLATE_STUDIES.length) ? TEMPLATE_STUDIES : [];
+    // Prefer server-provided studies (via injection or API), fallback to TEMPLATE_STUDIES
+    let S = (typeof TEMPLATE_STUDIES !== 'undefined' && TEMPLATE_STUDIES && TEMPLATE_STUDIES.length) ? TEMPLATE_STUDIES : [];
+    try {
+      const fromApi = await apiGetStudies();
+      if (Array.isArray(fromApi) && fromApi.length) S = fromApi;
+    } catch(e){}
     if (!S || S.length === 0){
       container.innerHTML = '<div class="small">Nenhum conteúdo de estudo (adicione aba "Estudos" com colunas: Tópico | Conteúdo).</div>';
       return;
     }
     S.forEach((s,i)=>{
       const d = document.createElement('details'); d.className='summary';
-      const sum = document.createElement('summary'); sum.innerText = s.topico || `Tópico ${i+1}`; d.appendChild(sum);
+      const sum = document.createElement('summary'); sum.innerText = s.topico || s.topic || `Tópico ${i+1}`; d.appendChild(sum);
       const div = document.createElement('div'); div.style.padding='8px 6px'; div.style.color='#dfeff5';
-      div.innerHTML = (s.conteudo || '').toString().replace(/\n/g,'<br>');
+      div.innerHTML = (s.conteudo || s.conteudo || s.content || '').toString().replace(/\n/g,'<br>');
       d.appendChild(div); container.appendChild(d);
     });
   }
 
   /***** ----------------- QUIZ (sem cronômetro) -----------------*****/
   const quizSizeLabel = document.getElementById('quizSizeLabel');
-  quizSizeLabel.innerText = TEMPLATE_QUIZ_SIZE || 20;
+  quizSizeLabel.innerText = QUIZ_SIZE || 20;
 
   // UI elements
   const topicSelect = document.getElementById('topicSelect');
@@ -336,19 +417,10 @@
     renderQuestion();
   });
 
-  /***** ----------------- Substituições: fetch() em vez de google.script.run ----------------- *****/
-
-  // showTopicSelection agora usa fetch para SCRIPT_URL?action=getTopics
   async function showTopicSelection(){
-    try {
-      const resp = await fetch(`${SCRIPT_URL}?action=getTopics`);
-      const j = await resp.json();
-      if (j && j.ok) populateTopicSelect(j.topics || []);
-      else populateTopicSelect([]);
-    } catch(err){
-      console.error('Erro topics', err);
-      populateTopicSelect([]);
-    }
+    // fetch topics via wrapper (google.script.run or fetch)
+    const topics = await apiGetTopics();
+    populateTopicSelect(topics || []);
   }
 
   function populateTopicSelect(topics){
@@ -359,9 +431,9 @@
         const o = document.createElement('option'); o.value = t; o.textContent = t; topicSelect.appendChild(o);
       });
     }
-    // preselect first topic if any
+    // preselect first topic if any from injected TEMPLATE_QUESTIONS
     if ((TEMPLATE_QUESTIONS && TEMPLATE_QUESTIONS.length) && topicSelect.options.length > 1){
-      const firstTopic = (TEMPLATE_QUESTIONS[0].materia || TEMPLATE_QUESTIONS[0].Matéria || TEMPLATE_QUESTIONS[0].materia || TEMPLATE_QUESTIONS[0].topic || '').toString();
+      const firstTopic = (TEMPLATE_QUESTIONS[0].materia || TEMPLATE_QUESTIONS[0].Matéria || TEMPLATE_QUESTIONS[0].topic || '').toString();
       if (firstTopic) {
         for (const o of topicSelect.options) {
           if (o.value === firstTopic) { o.selected = true; break; }
@@ -370,22 +442,20 @@
     }
   }
 
-  // loadTopicQuestions agora busca via fetch ao Web App
   async function loadTopicQuestions(topic){
-    // load via server (Web App)
+    // load via wrapper (keeps compatibility)
     qEl.innerText = 'Carregando perguntas...';
     try {
-      const resp = await fetch(`${SCRIPT_URL}?action=getQuestionsByTopic&topic=${encodeURIComponent(topic || 'Todos')}`);
-      const j = await resp.json();
-      let data = (j && j.ok && Array.isArray(j.questions)) ? j.questions : [];
-      POOL = (data && data.length) ? data.slice() : [];
+      const data = await apiGetQuestionsByTopic(topic || 'Todos');
+      // data may be array directly
+      POOL = (Array.isArray(data) && data.length) ? data.slice() : [];
       if (!POOL.length && TEMPLATE_QUESTIONS && TEMPLATE_QUESTIONS.length){
         // fallback to injected template questions if server returns empty
-        POOL = TEMPLATE_QUESTIONS.slice(0, TEMPLATE_QUIZ_SIZE);
+        POOL = TEMPLATE_QUESTIONS.slice(0, QUIZ_SIZE);
       }
       // shuffle
-      for (let i = POOL.length - 1; i > 0; i--) { const r = Math.floor(Math.random() * (i + 1)); [POOL[i], POOL[r]] = [POOL[r], POOL[i]]; }
-      POOL = POOL.slice(0, TEMPLATE_QUIZ_SIZE);
+      for (let i = POOL.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [POOL[i], POOL[j]] = [POOL[j], POOL[i]]; }
+      POOL = POOL.slice(0, QUIZ_SIZE);
       currentIndex = 0; score = 0; errors = []; quizStarted = true;
       btnRestart.style.display = 'none';
       renderQuestion();
@@ -516,21 +586,17 @@
   function showBestRecord(){ const rec = getRecord(); const el = document.getElementById('bestRecord'); if (!rec) el.innerText = 'Ainda sem recorde. Faça um quiz e apareça aqui!'; else el.innerText = `Seu recorde: ${rec.score}/${rec.total} (${rec.pct}%) — em ${new Date(rec.when).toLocaleString()}`; }
 
   /***** ----------------- CARTÕES (flashcards) -----------------*****/
-  function renderCards(){
+  async function renderCards(){
     const container = document.getElementById('cardsContainer');
     container.innerHTML = '';
-    // carregar todas questões do servidor (ou fallback nos injetados)
-    (async function(){
-      try {
-        const resp = await fetch(`${SCRIPT_URL}?action=getAllQuestions`);
-        const j = await resp.json();
-        const all = (j && j.ok && Array.isArray(j.questions)) ? j.questions : (TEMPLATE_QUESTIONS || []);
-        makeCards(all);
-      } catch(err){
-        const fallback = TEMPLATE_QUESTIONS || [];
-        makeCards(fallback);
-      }
-    })();
+    try {
+      const all = await apiGetAllQuestions();
+      const list = (Array.isArray(all) && all.length) ? all : (TEMPLATE_QUESTIONS || []);
+      makeCards(list);
+    } catch(e){
+      const fallback = TEMPLATE_QUESTIONS || [];
+      makeCards(fallback);
+    }
   }
 
   function makeCards(list){
@@ -566,7 +632,7 @@
     // desbloqueio audio por clique para permitir webaudio
     window.addEventListener('click', function unlock(){ try{ ensureAudio(); }catch(e){} window.removeEventListener('click', unlock); }, { once:true });
     // exibir quiz size
-    document.getElementById('quizSizeLabel').innerText = TEMPLATE_QUIZ_SIZE || 20;
+    document.getElementById('quizSizeLabel').innerText = QUIZ_SIZE || 20;
   })();
 
 </script>
