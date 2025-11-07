@@ -1,0 +1,202 @@
+// Code.gs — API JSON para o Quiz (cole inteiro, substitua seu Code.gs atual)
+
+// ===== CONFIG =====
+const SPREADSHEET_ID = '18eyeKiRJpSYDOWIqc4SVvKJ51Ozn7mWGzMQtU1H1f4I'; // <- seu ID da planilha
+const SHEET_NAME = 'Questões GSM';
+const STUDY_SHEET_NAME = 'Estudos';
+const QUIZ_SIZE = 20;
+const QUESTION_TIME_MS = 0;
+
+// ===== util =====
+function _normalize(s){
+  if (s === null || s === undefined) return "";
+  return s.toString().trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+}
+
+// Lê planilha usando openById (standalone web app precisa do ID)
+function _readQuestionsSheet(){
+  if (!SPREADSHEET_ID) throw new Error("SPREADSHEET_ID não definido em Code.gs");
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  if (!ss) throw new Error("Não foi possível abrir a planilha (verifique SPREADSHEET_ID e permissões).");
+  const sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) throw new Error("Aba '"+SHEET_NAME+"' não encontrada.");
+  const lastRow = sheet.getLastRow();
+  const lastCol = sheet.getLastColumn();
+  if (lastRow < 2) return { headers: [], rows: [] };
+  const all = sheet.getRange(1,1,lastRow,lastCol).getValues();
+  const headers = all[0].map(h => (h===null? '': h.toString()));
+  const rows = all.slice(1);
+  return { headers, rows };
+}
+
+function _mapHeaderIndexes(headers){
+  const normToIndex = {};
+  for (let i=0;i<headers.length;i++) normToIndex[_normalize(headers[i])] = i;
+  const findIndex = (cands) => {
+    for (const c of cands){
+      const k = _normalize(c);
+      if (k in normToIndex) return normToIndex[k];
+    }
+    return -1;
+  };
+  return {
+    idxID: findIndex(['id','identificador']),
+    idxPerg: findIndex(['pergunta','questao','questão','enunciado']),
+    idxA: findIndex(['a','alternativa a','alt a','opcao a','opção a']),
+    idxB: findIndex(['b','alternativa b','alt b','opcao b','opção b']),
+    idxC: findIndex(['c','alternativa c','alt c','opcao c','opção c']),
+    idxD: findIndex(['d','alternativa d','alt d','opcao d','opção d']),
+    idxResp: findIndex(['resposta','correta','gabarito','resposta correta']),
+    idxExp: findIndex(['explicacao','explicação','explicaçao','explic']),
+    idxMat: findIndex(['materia','matéria','assunto','topico','tópico'])
+  };
+}
+
+function _rowsToQuestions(headers, rows){
+  const idx = _mapHeaderIndexes(headers);
+  // validação mínima
+  if ([idx.idxPerg, idx.idxA, idx.idxB, idx.idxC, idx.idxD, idx.idxResp, idx.idxExp].some(x => x === -1)){
+    throw new Error("Cabeçalhos obrigatórios não encontrados. Verifique primeira linha da aba '"+SHEET_NAME+"' (Pergunta,A,B,C,D,Resposta,Explicação).");
+  }
+  const out = [];
+  for (let i=0;i<rows.length;i++){
+    const r = rows[i];
+    const pergunta = (r[idx.idxPerg] || '').toString().trim();
+    if (!pergunta) continue;
+    const idVal = idx.idxID !== -1 ? r[idx.idxID] : (i+1);
+    const answerRaw = (r[idx.idxResp] || '').toString().trim().toUpperCase();
+    const answerLetter = answerRaw ? answerRaw.substr(0,1) : '';
+    out.push({
+      id: idVal,
+      materia: idx.idxMat !== -1 ? (r[idx.idxMat] || '').toString() : '',
+      question: pergunta,
+      A: (r[idx.idxA] || '').toString(),
+      B: (r[idx.idxB] || '').toString(),
+      C: (r[idx.idxC] || '').toString(),
+      D: (r[idx.idxD] || '').toString(),
+      answer: answerLetter,
+      explanation: (r[idx.idxExp] || '').toString()
+    });
+  }
+  return out;
+}
+
+// ===== API functions =====
+function getAllQuestions(shuffle = false){
+  const { headers, rows } = _readQuestionsSheet();
+  const qs = _rowsToQuestions(headers, rows);
+  if (shuffle){
+    for (let i = qs.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [qs[i], qs[j]] = [qs[j], qs[i]];
+    }
+  }
+  return qs;
+}
+
+function getTopics(){
+  const { headers, rows } = _readQuestionsSheet();
+  const qs = _rowsToQuestions(headers, rows);
+  const seen = new Set();
+  const out = [];
+  for (const q of qs){
+    const t = (q.materia || 'Geral').toString().trim() || 'Geral';
+    if (!seen.has(t)){
+      seen.add(t);
+      out.push(t);
+    }
+  }
+  return out;
+}
+
+function getQuestionsByTopic(topic){
+  const tnorm = (topic || '').toString().trim();
+  const all = getAllQuestions(true);
+  const subset = (!tnorm || tnorm.toLowerCase() === 'todos') ? all : all.filter(q => (q.materia || '').toString().trim() === tnorm);
+  return subset.slice(0, Math.min(QUIZ_SIZE, subset.length));
+}
+
+function getQuestions(){
+  return getQuestionsByTopic('Todos');
+}
+
+function getStudies(){
+  if (!SPREADSHEET_ID) return [];
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName(STUDY_SHEET_NAME);
+  if (!sheet) return [];
+  const lastRow = sheet.getLastRow();
+  const lastCol = sheet.getLastColumn();
+  if (lastRow < 2) return [];
+  const all = sheet.getRange(1,1,lastRow,lastCol).getValues();
+  const headers = all[0].map(h => (h===null? '': h.toString().toLowerCase()));
+  const idxTopico = headers.indexOf('tópico') !== -1 ? headers.indexOf('tópico') : (headers.indexOf('topico') !== -1 ? headers.indexOf('topico') : 0);
+  const idxConteudo = headers.indexOf('conteúdo') !== -1 ? headers.indexOf('conteúdo') : (headers.indexOf('conteudo') !== -1 ? headers.indexOf('conteudo') : 1);
+  const rows = all.slice(1);
+  const res = [];
+  for (let i=0;i<rows.length;i++){
+    const r = rows[i];
+    const topico = (r[idxTopico] || '').toString();
+    const conteudo = (r[idxConteudo] || '').toString();
+    if (!topico && !conteudo) continue;
+    res.push({topico: topico, conteudo: conteudo});
+  }
+  return res;
+}
+
+// ===== debug helper (execute no editor para forçar autorização e testar) =====
+function testReadSheetDebug(){
+  try {
+    console.log('=== Iniciando diagnóstico ===');
+    console.log('SPREADSHEET_ID:', SPREADSHEET_ID);
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    console.log('Spreadsheet name (openById):', ss.getName());
+    const sheets = ss.getSheets().map(s=>s.getName()).join(' | ');
+    console.log('Sheets:', sheets);
+    const { headers, rows } = _readQuestionsSheet();
+    console.log('Linhas encontradas:', rows.length);
+    console.log('Colunas:', headers.length);
+    console.log('Cabeçalhos:', JSON.stringify(headers));
+    console.log('=== Diagnóstico finalizado ===');
+    return { ok:true, info: 'debug executed' };
+  } catch(err){
+    console.error('❌ Erro ao testar leitura:', err.toString());
+    return { ok:false, error: err.toString() };
+  }
+}
+
+// ===== doGet para servir como API JSON (e opcionalmente o Index.html) =====
+function doGet(e){
+  const params = e && e.parameter ? e.parameter : {};
+  const action = params.action || '';
+  try {
+    if (action){
+      if (action === 'getTopics') {
+        return ContentService.createTextOutput(JSON.stringify({ ok:true, topics: getTopics() })).setMimeType(ContentService.MimeType.JSON);
+      }
+      if (action === 'getAllQuestions') {
+        return ContentService.createTextOutput(JSON.stringify({ ok:true, questions: getAllQuestions(true) })).setMimeType(ContentService.MimeType.JSON);
+      }
+      if (action === 'getQuestionsByTopic') {
+        const topic = params.topic || 'Todos';
+        return ContentService.createTextOutput(JSON.stringify({ ok:true, questions: getQuestionsByTopic(topic) })).setMimeType(ContentService.MimeType.JSON);
+      }
+      if (action === 'getStudies') {
+        return ContentService.createTextOutput(JSON.stringify({ ok:true, studies: getStudies() })).setMimeType(ContentService.MimeType.JSON);
+      }
+      if (action === 'info') {
+        return ContentService.createTextOutput(JSON.stringify({ ok:true, info: 'Quiz API - actions: getTopics, getQuestionsByTopic, getAllQuestions, getStudies' })).setMimeType(ContentService.MimeType.JSON);
+      }
+      return ContentService.createTextOutput(JSON.stringify({ ok:false, error:'Unknown action' })).setMimeType(ContentService.MimeType.JSON);
+    }
+    // sem action: se quiser usar Apps Script como front, devolve o template Index (opcional)
+    const t = HtmlService.createTemplateFromFile('Index');
+    t.questions = getQuestions();
+    t.studies = getStudies();
+    t.quizSize = QUIZ_SIZE;
+    t.questionTime = QUESTION_TIME_MS;
+    return t.evaluate().setTitle('Quiz Guarda Civil').setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  } catch(err){
+    return ContentService.createTextOutput(JSON.stringify({ ok:false, error: err.toString() })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
