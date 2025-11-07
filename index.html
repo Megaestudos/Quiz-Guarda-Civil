@@ -1,4 +1,4 @@
-<!-- Index.html — adaptado para GitHub Pages (fetch para Web App) -->
+<!-- Index.html — pronto para GitHub Pages, já apontando para sua API /exec -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -160,11 +160,10 @@
 
 <script>
   /* ===================== CONFIGURE AQUI ===================== */
-  // Cole AQUI a URL do seu Web App (Apps Script) que termina com /exec
-  // exemplo: 'https://script.google.com/macros/s/AKfyc.../exec'
+  // URL pública do seu Web App (Apps Script) - já configurada pra você:
   const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwol4rmJsUOjRV7kzi5KA-nUOHs7X4-NGxBXU_Gx4qFV9b4nTNEMh4max9IKRr9QUe0Tg/exec';
 
-  // Fallbacks (no Apps Script these were injected; here left safe)
+  // Fallbacks (quando não houver template injetado)
   const TEMPLATE_QUESTIONS = null;
   const TEMPLATE_STUDIES = [];
   const TEMPLATE_QUIZ_SIZE = 20;
@@ -184,7 +183,7 @@
   // escala
   const scaleMin = 0.8, scaleMax = 1.6, scaleStep = 0.05;
 
-  /***** ----------------- Helpers de compatibilidade ----------------- *****/
+  /***** ----------------- Helpers de compatibilidade -----------------*****/
   function q_text(q){
     return q.pergunta || q.question || q.Pergunta || q.Question || '';
   }
@@ -195,7 +194,7 @@
     return q.explicacao || q.explanation || q.Explicacao || q.Explanation || q.explicacao || '';
   }
   function q_answer_letter(q){
-    const a = (q.resposta || q.answer || q.Resposta || q.Answer || '').toString().trim();
+    const a = (q.resposta || q.answer || q.Resposta || q.Answer || q.answer || '').toString().trim();
     if (!a) return '';
     return a.substr(0,1).toUpperCase();
   }
@@ -243,7 +242,7 @@
   document.addEventListener('fullscreenchange', updateFullscreenButton);
   document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
 
-  /***** ----------------- Sound ----------------- *****/
+  /***** ----------------- Sound -----------------*****/
   function isSoundOn(){ return localStorage.getItem(SOUND_KEY) !== '0'; }
   function setSoundOn(v){ localStorage.setItem(SOUND_KEY, v ? '1' : '0'); updateSoundBtn(); }
   function updateSoundBtn(){ document.getElementById('soundToggle').innerText = isSoundOn() ? '🔊 Som: On' : '🔇 Som: Off'; }
@@ -272,7 +271,6 @@
   async function renderStudies(){
     const container = document.getElementById('studyList');
     container.innerHTML = '';
-    // Try fetch studies from webapp
     try {
       const res = await fetch(`${SCRIPT_URL}?action=getStudies`, {cache:'no-store'});
       const js = await res.json();
@@ -289,7 +287,6 @@
     } catch(e){
       console.warn('Erro ao buscar estudos', e);
     }
-    // fallback
     const S = TEMPLATE_STUDIES || [];
     if (!S || S.length === 0){
       container.innerHTML = '<div class="small">Nenhum conteúdo de estudo (adicione aba "Estudos" com colunas: Tópico | Conteúdo).</div>';
@@ -328,13 +325,12 @@
   });
 
   async function showTopicSelection(){
-    populateTopicSelect(['Todos']); // default while loading
+    populateTopicSelect(['Todos']);
     try {
       const res = await fetch(`${SCRIPT_URL}?action=getTopics`, {cache:'no-store'});
       const js = await res.json();
       if (js && js.ok && js.topics) {
         populateTopicSelect(js.topics || []);
-        // try preselect first topic by reading local template (fallback)
         return;
       } else {
         console.warn('getTopics returned no topics', js);
@@ -342,7 +338,6 @@
     } catch (e) {
       console.warn('Erro fetch topics', e);
     }
-    // fallback: if TEMPLATE_QUESTIONS exist try to extract materias
     if (TEMPLATE_QUESTIONS && TEMPLATE_QUESTIONS.length){
       const t = TEMPLATE_QUESTIONS.map(q=> q.materia || '').filter(Boolean);
       populateTopicSelect(Array.from(new Set(t)));
@@ -362,7 +357,6 @@
   async function loadTopicQuestions(topic){
     document.getElementById('question').innerText = 'Carregando perguntas...';
     try {
-      // call webapp endpoint for topic
       const encoded = encodeURIComponent(topic || 'Todos');
       const res = await fetch(`${SCRIPT_URL}?action=getQuestionsByTopic&topic=${encoded}`, {cache:'no-store'});
       const js = await res.json();
@@ -370,7 +364,6 @@
       if (!data.length && TEMPLATE_QUESTIONS && TEMPLATE_QUESTIONS.length){
         data = TEMPLATE_QUESTIONS.slice(0, TEMPLATE_QUIZ_SIZE);
       }
-      // shuffle already performed server-side; ensure we slice to quiz size
       POOL = data.slice(0, TEMPLATE_QUIZ_SIZE);
       currentIndex = 0; score = 0; errors = []; quizStarted = true;
       btnRestart.style.display = 'none';
@@ -399,7 +392,152 @@
     qEl.style.opacity = 0;
     setTimeout(()=>{ qEl.innerText = `📘 ${q_topic(q) || ''}\n${q_text(q)}`; qEl.style.opacity = 1; }, 120);
 
-  // rest of file unchanged (full JS continues) — make sure to copy entire file to your repo
+    // build options
+    optsDiv.innerHTML = '';
+    ['A','B','C','D'].forEach(letter => {
+      const txt = q_option(q, letter);
+      if (!txt) return;
+      const btn = document.createElement('button');
+      btn.className = 'opt';
+      btn.id = 'opt_' + letter;
+      btn.innerText = `${letter}) ${txt}`;
+      btn.onclick = ()=> selectOption(letter);
+      optsDiv.appendChild(btn);
+    });
+
+    updateProgressUI();
+  }
+
+  function selectOption(letter){
+    if (!quizStarted) return;
+    const q = POOL[currentIndex];
+    const correct = q_answer_letter(q);
+    const chosen = letter.toUpperCase();
+    // disable buttons
+    document.querySelectorAll('.opt').forEach(el => el.disabled = true);
+    // mark classes
+    if (correct) {
+      const elCorrect = document.getElementById('opt_' + correct);
+      if (elCorrect) elCorrect.classList.add('correct');
+    }
+    const elChosen = document.getElementById('opt_' + chosen);
+    if (elChosen) {
+      if (chosen === correct) {
+        elChosen.classList.add('correct');
+        playCorrect();
+        score++;
+      } else {
+        elChosen.classList.add('wrong');
+        playWrong();
+        errors.push(q);
+      }
+    } else {
+      if (chosen !== correct) { playWrong(); errors.push(q); }
+      else playCorrect();
+    }
+
+    const title = (chosen === correct) ? '✅ Correto!' : ('❌ Errado! Resposta: ' + (correct || '—'));
+    showExplanation(title, q_expl(q));
+    nextBtn.disabled = false;
+  }
+
+  function showExplanation(title, explanation){
+    explainEl.style.display = 'block';
+    explainEl.innerHTML = `<strong>${title}</strong><div style="margin-top:8px;color:#dfeff5">${explanation || ''}</div>`;
+  }
+
+  function updateProgressUI(){
+    const total = POOL.length || 0;
+    const pct = total ? Math.round((currentIndex / total) * 100) : 0;
+    progressBar.style.width = pct + '%';
+    progressInfo.innerText = `${currentIndex + 1} / ${total}`;
+    progressText.innerText = `Pontos: ${score}`;
+  }
+
+  function finishQuiz(){
+    quizStarted = false;
+    const total = POOL.length || 1;
+    const pct = Math.round((score / total) * 100);
+    const badge = pct >= 80 ? '🏆' : pct >= 60 ? '🎉' : pct >= 40 ? '👍' : '📘';
+    const finalTitle = `${badge} Você acertou ${score} de ${total} (${pct}%)`;
+    qEl.innerText = finalTitle;
+    optsDiv.innerHTML = '';
+    explainEl.style.display = 'block';
+    const rec = saveRecord(score, total);
+    explainEl.innerHTML = `<div style="color:#dfeff5">${rec && rec.isNew ? '🎯 Novo recorde! ' : ''}${rec && rec.record ? 'Seu recorde: ' + rec.record.score + '/' + rec.record.total + ' ('+rec.record.pct+'%)' : ''}</div>`;
+    btnRestart.style.display = 'inline-block';
+    progressBar.style.width = '100%';
+  }
+
+  function restartQuiz(){ // carrega novamente mesmo tópico
+    if (topicSelect && topicSelect.value) loadTopicQuestions(topicSelect.value);
+    else loadTopicQuestions('Todos');
+  }
+
+  /***** ----------------- Local record (localStorage) -----------------*****/
+  function saveRecord(score, total){
+    try {
+      const pct = Math.round((score/total)*100);
+      const now = new Date().toISOString();
+      const current = {score: score, total: total, pct: pct, when: now};
+      const prev = JSON.parse(localStorage.getItem(BEST_KEY) || 'null');
+      if (!prev || pct > prev.pct) {
+        localStorage.setItem(BEST_KEY, JSON.stringify(current));
+        return {isNew:true, record: current, prev: prev};
+      } else {
+        return {isNew:false, record: prev};
+      }
+    } catch(e){ return null; }
+  }
+  function getRecord(){ try { return JSON.parse(localStorage.getItem(BEST_KEY) || 'null'); } catch(e){ return null; } }
+  function showBestRecord(){ const rec = getRecord(); const el = document.getElementById('bestRecord'); if (!rec) el.innerText = 'Ainda sem recorde. Faça um quiz e apareça aqui!'; else el.innerText = `Seu recorde: ${rec.score}/${rec.total} (${rec.pct}%) — em ${new Date(rec.when).toLocaleString()}`; }
+
+  /***** ----------------- CARTÕES (flashcards) -----------------*****/
+  async function renderCards(){
+    const container = document.getElementById('cardsContainer');
+    container.innerHTML = '';
+    try {
+      const res = await fetch(`${SCRIPT_URL}?action=getAllQuestions`, {cache:'no-store'});
+      const js = await res.json();
+      const all = (js && js.ok && js.questions) ? js.questions : (TEMPLATE_QUESTIONS || []);
+      makeCards(all);
+      return;
+    } catch(e){
+      console.warn('Erro ao buscar cartões', e);
+    }
+    const fallback = TEMPLATE_QUESTIONS || [];
+    makeCards(fallback);
+  }
+
+  function makeCards(list){
+    const container = document.getElementById('cardsContainer');
+    container.innerHTML = '';
+    if (!list || list.length === 0) { container.innerHTML = '<div class="small">Nenhum cartão disponível.</div>'; return; }
+    for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; }
+    list.forEach(q=>{
+      const wrapper = document.createElement('div'); wrapper.className = 'flashcard card-small';
+      const inner = document.createElement('div'); inner.className = 'flash-inner';
+      const front = document.createElement('div'); front.className = 'flash-front';
+      const back = document.createElement('div'); back.className = 'flash-back';
+      front.innerHTML = `<div style="font-size:12px;color:#dfeff5">${q_topic(q) || ''}</div><div style="font-weight:800;margin-top:8px">${q_text(q)}</div><div style="margin-top:8px;font-size:13px;color:#bfeadf">Clique para ver explicação</div>`;
+      back.innerHTML = `<div style="font-size:12px;color:#dfeff5">${q_topic(q) || ''}</div><div style="font-weight:800;margin-top:8px">Resposta: ${q_answer_letter(q) || '—'}</div><div style="margin-top:8px;color:#dfeff5">${q_expl(q) || ''}</div>`;
+      inner.appendChild(front); inner.appendChild(back);
+      wrapper.appendChild(inner);
+      wrapper.addEventListener('click', ()=> inner.classList.toggle('flipped'));
+      container.appendChild(wrapper);
+    });
+  }
+
+  /***** ----------------- Inicialização -----------------*****/
+  (function init(){
+    setScale(readSavedScale());
+    renderStudies();
+    showTopicSelection();
+    showBestRecord();
+    window.addEventListener('click', function unlock(){ try{ ensureAudio(); }catch(e){} window.removeEventListener('click', unlock); }, { once:true });
+    document.getElementById('quizSizeLabel').innerText = TEMPLATE_QUIZ_SIZE || 20;
+  })();
+
 </script>
 </body>
 </html>
