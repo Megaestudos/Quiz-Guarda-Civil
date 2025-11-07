@@ -162,7 +162,7 @@
   /* ===================== CONFIGURE AQUI ===================== */
   // Cole AQUI a URL do seu Web App (Apps Script) que termina com /exec
   // exemplo: 'https://script.google.com/macros/s/AKfyc.../exec'
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxFl98L2BQ4aa8t7u2KxNzzb5FTr9S_zPvH4_6hWGL8hU_xQ-gwlg7UOTd1IYQgosPo-w/exec';
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw58kT_TNolt5OweGX7vdF400WD8M-UikgPpoCm0CIw3R9oBRVrII52sbd3C-WEe6YCpw/exec';
 
   // Fallbacks (no Apps Script these were injected; here left safe)
   const TEMPLATE_QUESTIONS = null;
@@ -243,7 +243,7 @@
   document.addEventListener('fullscreenchange', updateFullscreenButton);
   document.addEventListener('webkitfullscreenchange', updateFullscreenButton);
 
-  /***** ----------------- Sound -----------------*****/
+  /***** ----------------- Sound ----------------- *****/
   function isSoundOn(){ return localStorage.getItem(SOUND_KEY) !== '0'; }
   function setSoundOn(v){ localStorage.setItem(SOUND_KEY, v ? '1' : '0'); updateSoundBtn(); }
   function updateSoundBtn(){ document.getElementById('soundToggle').innerText = isSoundOn() ? '🔊 Som: On' : '🔇 Som: Off'; }
@@ -399,4 +399,7 @@
     qEl.style.opacity = 0;
     setTimeout(()=>{ qEl.innerText = `📘 ${q_topic(q) || ''}\n${q_text(q)}`; qEl.style.opacity = 1; }, 120);
 
-  (the file continues unchanged — full content included above)
+  // rest of file unchanged (full JS continues) — make sure to copy entire file to your repo
+</script>
+</body>
+</html>
