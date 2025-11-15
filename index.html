@@ -473,6 +473,158 @@
     window.addEventListener('click', function unlock(){ try{ ensureAudio(); }catch(e){} window.removeEventListener('click', unlock); }, { once:true });
     document.getElementById('quizSizeLabel').innerText = TEMPLATE_QUIZ_SIZE || 20;
   })();
+/* === Simulados: seleção, execução e submit (cole no index.html) === */
+async function showSimuladoSetup() {
+  // render UI rápido (pode estilizar)
+  go('quiz'); // usa a página do quiz para reaproveitar
+  document.getElementById('question').innerText = '';
+  document.getElementById('opts').innerHTML = '';
+  document.getElementById('progressText').innerText = '';
+  // cria seleção rápida
+  const html = `
+    <div style="margin:8px 0">
+      <label style="font-weight:800">Tópico:</label>
+      <select id="simTopic"></select>
+      <label style="margin-left:12px;font-weight:800"># Questões:</label>
+      <select id="simSize"><option>20</option><option>30</option><option>50</option></select>
+      <label style="margin-left:12px"><input type="checkbox" id="simTimed"> Cronometrado</label>
+      <button class="next-btn small-btn" id="startSimBtn" style="margin-left:12px">Iniciar Simulado</button>
+    </div>
+    <div id="simTimerArea" style="margin-top:8px"></div>
+  `;
+  document.getElementById('question').innerHTML = html;
+
+  // popula tópicos (reusa endpoint)
+  try {
+    const res = await fetch(`${SCRIPT_URL}?action=getTopics`, {cache:'no-store'});
+    const js = await res.json();
+    const sel = document.getElementById('simTopic');
+    sel.innerHTML = '';
+    const optAll = document.createElement('option'); optAll.value='Todos'; optAll.textContent='Todos'; sel.appendChild(optAll);
+    if (js && js.ok && js.topics) js.topics.forEach(t => { const o = document.createElement('option'); o.value=t; o.textContent=t; sel.appendChild(o); });
+  } catch(e){ console.warn('err topics', e); }
+  document.getElementById('startSimBtn').addEventListener('click', async ()=>{
+    const topic = document.getElementById('simTopic').value;
+    const size = parseInt(document.getElementById('simSize').value,10);
+    const timed = document.getElementById('simTimed').checked;
+    await startSimulado({ topic, size, timed });
+  });
+}
+
+let SIM = { pool:[], idx:0, answers:[], timer:null, timeLeft:0, config:null };
+
+async function startSimulado(cfg){
+  SIM = { pool:[], idx:0, answers:[], timer:null, timeLeft:0, config:cfg };
+  // busca as questões (usamos getQuestionsByTopic; se 'Todos' usamos getAllQuestions)
+  try {
+    const encoded = encodeURIComponent(cfg.topic || 'Todos');
+    const url = (cfg.topic && cfg.topic !== 'Todos') ? `${SCRIPT_URL}?action=getQuestionsByTopic&topic=${encoded}` : `${SCRIPT_URL}?action=getAllQuestions`;
+    const res = await fetch(url, {cache:'no-store'});
+    const js = await res.json();
+    let list = (js && js.ok && (js.questions||js.questions)) ? (js.questions || js.questions) : [];
+    if (!Array.isArray(list)) list = js || [];
+    // shuffle and slice
+    for (let i=list.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [list[i],list[j]]=[list[j],list[i]]; }
+    SIM.pool = list.slice(0, Math.min(cfg.size || 20, list.length));
+    // timed default: 60s per question
+    if (cfg.timed) { SIM.timeLeft = (SIM.pool.length * 60); startSimTimer(); }
+    SIM.idx = 0; SIM.answers = Array(SIM.pool.length).fill(null);
+    renderSimuladoQuestion();
+    quizStarted = true;
+  } catch(e){ console.error('startSimulado err', e); document.getElementById('question').innerText = 'Erro ao carregar simulado.'; }
+}
+
+function startSimTimer(){
+  const area = document.getElementById('simTimerArea') || document.getElementById('question');
+  SIM.timer = setInterval(()=>{
+    SIM.timeLeft--;
+    if (SIM.timeLeft <= 0) { clearInterval(SIM.timer); finishSimulado(); return; }
+    const m = Math.floor(SIM.timeLeft/60); const s = SIM.timeLeft%60;
+    document.getElementById('simTimerArea').innerHTML = `<div class="small">Tempo restante: ${m}:${s.toString().padStart(2,'0')}</div>`;
+  }, 1000);
+}
+
+function renderSimuladoQuestion(){
+  const q = SIM.pool[SIM.idx];
+  if (!q) { finishSimulado(); return; }
+  // mostra enunciado e alternativas (ou cartes)
+  const qText = (q.question || q.pergunta || q_text(q) || '');
+  document.getElementById('question').innerHTML = `<div style="white-space:pre-wrap">${qText}</div>`;
+  const opts = document.getElementById('opts'); opts.innerHTML = '';
+  ['A','B','C','D'].forEach(letter=>{
+    const txt = q[letter] || q_option(q, letter);
+    if (!txt) return;
+    const btn = document.createElement('button');
+    btn.className = 'opt';
+    btn.innerText = `${letter}) ${txt}`;
+    btn.onclick = ()=> {
+      SIM.answers[SIM.idx] = letter;
+      // marca visualmente
+      Array.from(opts.querySelectorAll('button.opt')).forEach(b=>b.style.opacity=0.5);
+      btn.style.opacity = 1;
+      // auto avançar
+      setTimeout(()=>{ if (SIM.idx < SIM.pool.length-1) { SIM.idx++; renderSimuladoQuestion(); } else { finishSimulado(); } }, 250);
+    };
+    opts.appendChild(btn);
+  });
+  // barra de progresso
+  document.getElementById('progressInfo').innerText = `${SIM.idx+1} / ${SIM.pool.length}`;
+  document.getElementById('progressText').innerText = `Simulado: ${SIM.pool.length} questões`;
+  // próximo/prev
+  document.getElementById('nextBtn').disabled = false;
+  document.getElementById('nextBtn').onclick = ()=> { if (SIM.idx < SIM.pool.length-1) { SIM.idx++; renderSimuladoQuestion(); } else finishSimulado(); };
+}
+
+function finishSimulado(){
+  quizStarted = false;
+  if (SIM.timer) { clearInterval(SIM.timer); SIM.timer = null; }
+  // calcula score
+  let score = 0; const total = SIM.pool.length; const details = [];
+  for (let i=0;i<total;i++){
+    const q = SIM.pool[i];
+    const chosen = SIM.answers[i];
+    const correct = (q.answer || q.resposta || '').toString().substr(0,1).toUpperCase();
+    const ok = chosen && chosen.toUpperCase() === correct;
+    if (ok) score++;
+    details.push({ id: q.id || i+1, question: q.question || q.pergunta, chosen: chosen || null, correct: correct || null, ok });
+  }
+  const pct = Math.round((score/total)*100);
+  document.getElementById('question').innerText = `Resultado: ${score} / ${total} (${pct}%)`;
+  document.getElementById('opts').innerHTML = `<div style="margin-top:10px"><button class="btn" id="btnSaveSim">Salvar resultado</button> <button class="btn" id="btnReview">Rever questões</button></div>`;
+  document.getElementById('btnReview').addEventListener('click', ()=> reviewErrors(details));
+  document.getElementById('btnSaveSim').addEventListener('click', ()=> saveSimuladoResult({score, total, pct, details, topic: SIM.config.topic, timed: SIM.config.timed, date: new Date().toISOString()}));
+}
+
+function reviewErrors(details){
+  const wrong = details.filter(d=>!d.ok);
+  if (!wrong.length) { alert('Nenhum erro!'); return; }
+  // mostra primeiro erro
+  SIM.pool = wrong.map(w=> ({ question: w.question, ...w }) );
+  SIM.idx = 0;
+  renderSimuladoQuestion();
+}
+
+async function saveSimuladoResult(payload){
+  // tenta POSTar para o backend (Apps Script deve implementar doPost)
+  try {
+    const res = await fetch(`${SCRIPT_URL}?action=saveSimuladoResult`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+      cache: 'no-store'
+    });
+    const js = await res.json();
+    if (js && js.ok) {
+      alert('Resultado salvo! ID: ' + (js.id || '—'));
+    } else {
+      console.warn('saveSimuladoResult returned:', js);
+      alert('Não foi possível salvar resultado no servidor. Verifique console.');
+    }
+  } catch(e){
+    console.error('saveSimuladoResult err', e);
+    alert('Erro ao salvar resultado (ver console).');
+  }
+}
 
 </script>
 </body>
