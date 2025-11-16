@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-  <title>Guarda Civil — Plataforma de Estudos</title>
+  <title>Guarda Civil — Plataforma (Demo automática 4h)</title>
   <meta name="theme-color" content="#1e3c72"/>
   <style>
     :root{
@@ -20,7 +20,7 @@
     .card{ background:var(--card-bg); border-radius:14px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,0.28); }
     .header{ display:flex; justify-content:space-between; align-items:center; gap:10px; z-index:30; }
     .header > div:first-child{ flex:1 1 auto; min-width:0; }
-    .title{ font-size:clamp(20px,6vw,28px); margin:0; font-weight:800; line-height:1.05; }
+    .title{ font-size:clamp(20px,6vw,30px); margin:0; font-weight:800; line-height:1.05; }
     .subtitle{ font-size:14px; color:#e6f7f0; margin-top:6px; }
     .controls{ display:flex; gap:8px; align-items:center; }
     .btn{ background:transparent;border:1px solid rgba(255,255,255,0.12); color:#fff;padding:var(--btn-padding); border-radius:10px; font-weight:700; cursor:pointer; height:var(--action-height); min-width:84px; display:inline-flex; align-items:center; justify-content:center; gap:8px; }
@@ -38,10 +38,11 @@
     .flash-back{ transform:rotateY(180deg); background:rgba(0,0,0,0.12); color:#fff; white-space:pre-wrap; }
     .flash-inner.flipped{ transform:rotateY(180deg); }
     .opts{ display:grid; gap:10px; grid-template-columns:1fr 1fr; margin-top:8px; }
-    button.opt{ padding:12px; min-height:66px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); background:#fff; color:#123; font-weight:800; cursor:pointer; text-align:left; transition: transform .08s ease, box-shadow .12s ease, border-color .12s ease, background .12s ease; font-size:15px; }
+    button.opt{ padding:12px; min-height:72px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); background:#fff; color:#123; font-weight:800; cursor:pointer; text-align:left; transition: transform .08s ease, box-shadow .12s ease, border-color .12s ease, background .12s ease; font-size:16px; }
     .opt.correct{ background:#e9fff2; border-color:#2fa764; color:#064; box-shadow:0 8px 20px rgba(47,167,100,0.06); }
     .opt.wrong{ background:#fff0f0; border-color:#ff6b6b; color:#6b1010; box-shadow:0 8px 20px rgba(255,107,107,0.06); }
     .explain{ margin-top:12px; padding:12px; background:rgba(255,255,255,0.04); border-radius:10px; color:#fff; }
+    #question{ font-size:clamp(18px,2.6vw,22px); } /* aumento de fonte das perguntas */
     .floating-home{ position:fixed; right:14px; bottom:14px; z-index:60; border-radius:12px; padding:10px 12px; background:linear-gradient(90deg,var(--accent),var(--accent-2)); color:#012; font-weight:900; box-shadow:0 10px 30px rgba(0,0,0,0.28); cursor:pointer; }
     @media (max-width:520px){
       .header{ flex-wrap:wrap; align-items:center; }
@@ -50,7 +51,7 @@
       .title{ font-size:20px; white-space:normal; }
       .opts{ grid-template-columns:1fr; }
       .btn{ height:44px; padding:8px 10px; font-size:14px; }
-      button.opt{ font-size:16px; min-height:64px; }
+      button.opt{ font-size:17px; min-height:68px; }
     }
   </style>
 </head>
@@ -64,7 +65,6 @@
       <div class="controls" role="toolbar" aria-label="Controles">
         <div class="small-muted">Acesso: <strong id="accessLabel">—</strong></div>
         <button class="btn" id="soundToggle">🔊 On</button>
-        <button class="btn" id="btnOpenLogin">Entrar / Resgatar</button>
       </div>
     </div>
 
@@ -100,45 +100,15 @@
       <section id="history" class="page"><h3>Histórico</h3><div id="historyList"></div></section>
     </div>
 
-    <div style="margin-top:12px;text-align:center;color:#dfeff5;font-size:12px">Demo via servidor — duração: <strong>4 horas</strong></div>
+    <div style="margin-top:12px;text-align:center;color:#dfeff5;font-size:12px">Demo automática — duração: <strong>4 horas</strong> por dispositivo</div>
   </div>
 
   <!-- floating home -->
-  <div class="floating-home" title="Voltar ao início" onclick="go('home')">Inicio</div>
-
-  <!-- login modal -->
-  <div id="loginModal" style="position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.45);z-index:40">
-    <div class="card" style="width:92%;max-width:480px">
-      <h3>Entrar / Resgatar / Demo</h3>
-      <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
-        <input id="inputName" placeholder="Seu nome" style="padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.06)"/>
-        <input id="inputEmail" placeholder="Seu e-mail (obrigatório para demo)" style="padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.06)"/>
-        <input id="inputCode" placeholder="Código de compra (opcional)" style="padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.06)"/>
-        <div style="display:flex;gap:8px">
-          <button class="btn primary" id="btnRedeem">Resgatar</button>
-          <button class="btn" id="btnRequestToken">Pedir token (Demo)</button>
-          <button class="btn" id="btnResendToken" style="display:none">Reenviar token</button>
-          <button class="btn" id="btnCloseLogin">Fechar</button>
-        </div>
-        <div id="redeemNotice"></div>
-
-        <!-- token area -->
-        <div id="tokenArea" style="display:none;margin-top:6px">
-          <input id="inputToken" placeholder="Cole o token recebido por e-mail" style="padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.06)"/>
-          <div style="display:flex;gap:8px;margin-top:6px">
-            <button class="btn primary" id="btnVerifyToken">Verificar token</button>
-            <button class="btn" id="btnCancelToken">Cancelar</button>
-          </div>
-        </div>
-
-        <div class="small-muted" style="margin-top:6px">Ao pedir demo, você receberá um token por e-mail (30 min). Clique Reenviar se não recebeu.</div>
-      </div>
-    </div>
-  </div>
+  <div class="floating-home" title="Voltar ao início" onclick="go('home')">Início</div>
 
 <script>
-/* ================= CONFIG ================= */
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx7fZ3sdaqtQDGnNPoBJQEcMM2irIb5361CreasJwPuLjnA9-g12VNhWs7azDIQi-R0Rw/exec';
+/* ========== CONFIG ========== */
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyS8VtUHvc4_LFRWOEAsTt_xMfUxmAj2ce1gNXTP3O6jEEKxMgKfPPDO-TzYbuP8suFIg/exec';
 const TEMPLATE_QUIZ_SIZE = 20;
 const DEMO_HOURS = 4;
 const DEVICE_KEY = 'gcm_device_id';
@@ -146,25 +116,25 @@ const SERVER_DEMO_EXP_KEY = 'gcm_demo_expires_server';
 const SERVER_DEMO_FLAG = 'gcm_access_server';
 const SOUND_KEY = 'gcm_sound_on';
 
-/* ================ UTIL ================= */
-function uuidv4(){ return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){ const r=Math.random()*16|0, v=c==='x'?r:(r&0x3|0x8); return v.toString(16); }); }
+/* ========== UTIL ========== */
+function uuidv4(){ return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){ const r = Math.random()*16|0, v = c==='x' ? r : (r&0x3|0x8); return v.toString(16); }); }
 function getDeviceId(){ let id = localStorage.getItem(DEVICE_KEY); if(!id){ id = uuidv4(); localStorage.setItem(DEVICE_KEY, id); } return id; }
 function nowMs(){ return Date.now(); }
 
-/* ================ AUDIO ================= */
+/* ========== AUDIO ========== */
 let audioCtx=null;
 function ensureAudio(){ if(audioCtx) return; try{ audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }catch(e){ audioCtx=null; } }
-function playTone(freq,dur=120,type='sine',gainVal=0.06){ if(!isSoundOn()) return; ensureAudio(); if(!audioCtx) return; const o=audioCtx.createOscillator(); const g=audioCtx.createGain(); o.type=type; o.frequency.value=freq; g.gain.value=gainVal; o.connect(g); g.connect(audioCtx.destination); o.start(); setTimeout(()=>{ try{o.stop(); o.disconnect(); g.disconnect(); }catch(e){} }, dur); }
+function playTone(freq,dur=120,type='sine',gainVal=0.06){ if(!isSoundOn()) return; ensureAudio(); if(!audioCtx) return; const o = audioCtx.createOscillator(); const g = audioCtx.createGain(); o.type=type; o.frequency.value=freq; g.gain.value = gainVal; o.connect(g); g.connect(audioCtx.destination); o.start(); setTimeout(()=>{ try{ o.stop(); o.disconnect(); g.disconnect(); }catch(e){} }, dur); }
 function playCorrect(){ playTone(880,120,'sine',0.06); }
 function playWrong(){ playTone(220,220,'sawtooth',0.08); }
 function isSoundOn(){ return localStorage.getItem(SOUND_KEY) !== '0'; }
 function setSoundOn(v){ localStorage.setItem(SOUND_KEY, v ? '1' : '0'); updateSoundBtn(); }
-function updateSoundBtn(){ document.getElementById('soundToggle').innerText = isSoundOn() ? '🔊 On' : '🔇 Off'; }
-document.getElementById('soundToggle').addEventListener('click', ()=> { setSoundOn(!isSoundOn()); if(isSoundOn()) tryUnlockAudio(); });
+function updateSoundBtn(){ const el = document.getElementById('soundToggle'); if (el) el.innerText = isSoundOn() ? '🔊 On' : '🔇 Off'; }
+document.addEventListener('DOMContentLoaded', ()=>{ document.getElementById('soundToggle').addEventListener('click', ()=> { setSoundOn(!isSoundOn()); if(isSoundOn()) tryUnlockAudio(); }); });
 window.addEventListener('pointerup', function unlockAudio(){ tryUnlockAudio(); window.removeEventListener('pointerup', unlockAudio); }, { once:true });
 function tryUnlockAudio(){ try{ ensureAudio(); if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); }catch(e){} }
 
-/* ================ ACCESS / DEMO (server) ================= */
+/* ========== ACCESS / DEMO (server automatic) ========== */
 function updateAccessLabel(){
   const lbl = document.getElementById('accessLabel');
   const serverExp = localStorage.getItem(SERVER_DEMO_EXP_KEY);
@@ -189,111 +159,29 @@ function updateAccessLabel(){
   lbl.innerText = 'Sem acesso';
 }
 
-/* check server demo on load */
-async function checkServerDemoOnLoad(){
+/* check server demo and if none register automatically */
+async function registerDemoServerClient(){
   try {
     const deviceId = getDeviceId();
-    const res = await fetch(`${SCRIPT_URL}?action=checkDemo&deviceId=${encodeURIComponent(deviceId)}`, {cache:'no-store'});
-    const js = await res.json();
-    if (js && js.ok && js.active && js.expiresAt){
-      const expMs = Date.parse(js.expiresAt);
-      localStorage.setItem(SERVER_DEMO_EXP_KEY, String(expMs));
-      localStorage.setItem(SERVER_DEMO_FLAG, '1');
-    } else {
-      localStorage.removeItem(SERVER_DEMO_EXP_KEY);
-      localStorage.removeItem(SERVER_DEMO_FLAG);
-    }
-  } catch(e){ console.warn('checkServerDemo error', e); }
-  updateAccessLabel();
-}
-
-/* request token (server) - also used for resend */
-async function requestVerifyEmail(){
-  const name = document.getElementById('inputName').value.trim();
-  const email = document.getElementById('inputEmail').value.trim();
-  if (!email) { document.getElementById('redeemNotice').innerHTML = '<div class="notice err">Informe o e-mail para receber o token.</div>'; return; }
-  document.getElementById('redeemNotice').innerHTML = '<div class="notice">Solicitando token...</div>';
-  try {
-    const deviceId = getDeviceId();
-    const url = `${SCRIPT_URL}?action=requestVerifyEmail&deviceId=${encodeURIComponent(deviceId)}&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}`;
-    const res = await fetch(url, {cache:'no-store'});
-    const js = await res.json();
-    if (js && js.ok){
-      document.getElementById('redeemNotice').innerHTML = '<div class="notice ok">Token enviado por e-mail — cole abaixo.</div>';
-      document.getElementById('tokenArea').style.display = 'block';
-      document.getElementById('btnResendToken').style.display = 'inline-flex';
-    } else {
-      document.getElementById('redeemNotice').innerHTML = `<div class="notice err">${js && js.error ? js.error : 'Erro ao solicitar token.'}</div>`;
-    }
-  } catch(e){
-    console.error('requestVerifyEmail err', e);
-    document.getElementById('redeemNotice').innerHTML = '<div class="notice err">Erro ao solicitar token (veja console).</div>';
-  }
-}
-
-/* verify token (server) */
-async function verifyToken(){
-  const token = document.getElementById('inputToken').value.trim();
-  if (!token) { document.getElementById('redeemNotice').innerHTML = '<div class="notice err">Cole o token recebido.</div>'; return; }
-  document.getElementById('redeemNotice').innerHTML = '<div class="notice">Verificando token...</div>';
-  try {
-    const deviceId = getDeviceId();
-    const url = `${SCRIPT_URL}?action=verifyToken&deviceId=${encodeURIComponent(deviceId)}&token=${encodeURIComponent(token)}&hours=${encodeURIComponent(DEMO_HOURS)}`;
-    const res = await fetch(url, {cache:'no-store'});
+    // Call registerDemoServer (server will return existing expiry if active)
+    const res = await fetch(`${SCRIPT_URL}?action=registerDemoServer&deviceId=${encodeURIComponent(deviceId)}&hours=${encodeURIComponent(DEMO_HOURS)}`, {cache:'no-store'});
     const js = await res.json();
     if (js && js.ok && js.expiresAt){
       const expMs = Date.parse(js.expiresAt);
       localStorage.setItem(SERVER_DEMO_EXP_KEY, String(expMs));
       localStorage.setItem(SERVER_DEMO_FLAG, '1');
-      updateAccessLabel();
-      document.getElementById('redeemNotice').innerHTML = '<div class="notice ok">Token verificado — demo ativada (4h).</div>';
-      setTimeout(()=>{ document.getElementById('loginModal').style.display='none'; document.getElementById('tokenArea').style.display='none'; },900);
-      return;
-    } else {
-      document.getElementById('redeemNotice').innerHTML = `<div class="notice err">${js && js.error ? js.error : 'Token inválido.'}</div>`;
+    } else if (js && js.ok && js.active && js.expiresAt){
+      const expMs = Date.parse(js.expiresAt);
+      localStorage.setItem(SERVER_DEMO_EXP_KEY, String(expMs));
+      localStorage.setItem(SERVER_DEMO_FLAG, '1');
     }
   } catch(e){
-    console.error('verifyToken err', e);
-    document.getElementById('redeemNotice').innerHTML = '<div class="notice err">Erro ao verificar token (veja console).</div>';
+    console.warn('registerDemoServerClient error', e);
   }
+  updateAccessLabel();
 }
 
-/* legacy redeem (codes) */
-async function redeemCode(){
-  const code = document.getElementById('inputCode').value.trim();
-  const name = document.getElementById('inputName').value.trim();
-  const email = document.getElementById('inputEmail').value.trim();
-  if (!code){ document.getElementById('redeemNotice').innerHTML = '<div class="notice err">Informe o código.</div>'; return; }
-  document.getElementById('redeemNotice').innerHTML = '<div class="notice">Validando...</div>';
-  try {
-    const url = `${SCRIPT_URL}?action=ativarCodigo&nome=${encodeURIComponent(name||'')}&email=${encodeURIComponent(email||'')}&codigo=${encodeURIComponent(code)}`;
-    const res = await fetch(url, {cache:'no-store'});
-    const js = await res.json();
-    if (js && js.ok){
-      localStorage.setItem('gcm_access', code);
-      if (email) localStorage.setItem('gcm_email', email);
-      document.getElementById('redeemNotice').innerHTML = '<div class="notice ok">Código válido — acesso liberado.</div>';
-      updateAccessLabel();
-      setTimeout(()=> document.getElementById('loginModal').style.display='none',900);
-    } else {
-      document.getElementById('redeemNotice').innerHTML = `<div class="notice err">${js && js.error ? js.error : 'Código inválido.'}</div>`;
-    }
-  } catch(e){
-    console.error('redeemCode err', e);
-    document.getElementById('redeemNotice').innerHTML = '<div class="notice err">Erro na validação (veja console).</div>';
-  }
-}
-
-/* modal wiring */
-document.getElementById('btnOpenLogin').addEventListener('click', ()=> { document.getElementById('loginModal').style.display='flex'; });
-document.getElementById('btnCloseLogin').addEventListener('click', ()=> { document.getElementById('loginModal').style.display='none'; document.getElementById('tokenArea').style.display='none'; });
-document.getElementById('btnRequestToken').addEventListener('click', ()=> { requestVerifyEmail(); });
-document.getElementById('btnResendToken').addEventListener('click', ()=> { requestVerifyEmail(); });
-document.getElementById('btnVerifyToken').addEventListener('click', ()=> { verifyToken(); });
-document.getElementById('btnCancelToken').addEventListener('click', ()=> { document.getElementById('tokenArea').style.display='none'; document.getElementById('redeemNotice').innerHTML=''; });
-document.getElementById('btnRedeem').addEventListener('click', ()=> { redeemCode(); });
-
-/* ================ CARDS ================= */
+/* ========== CARDS / QUIZ / SIMULADOS (idem, com pequenas adaptações) ========== */
 async function renderCards(){
   const container = document.getElementById('cardsContainer');
   container.innerHTML = '<div class="small-muted">Carregando cartões...</div>';
@@ -333,7 +221,8 @@ async function renderCards(){
   }
 }
 
-/* ================ QUIZ ================= */
+/* QUIZ */
+let POOL = [], currentIndex = 0, score = 0, quizStarted = false;
 const topicSelect = document.getElementById('topicSelect');
 document.getElementById('loadTopicBtn').addEventListener('click', ()=> loadTopicQuestions(topicSelect.value));
 document.getElementById('nextBtn').addEventListener('click', ()=> { if (!quizStarted) return; currentIndex++; renderQuestion(); });
@@ -422,7 +311,7 @@ function finishQuiz(){
 }
 function restartQuiz(){ if (topicSelect && topicSelect.value) loadTopicQuestions(topicSelect.value); else loadTopicQuestions('Todos'); }
 
-/* SIMULADOS e HISTORY - igual ao anterior (mantido) */
+/* SIMULADOS e HISTORY implementados como antes (mantidos) */
 let SIM = { pool:[], idx:0, answers:[], timer:null, timeLeft:0, config:null };
 async function showSimuladoSetup(){
   go('sim');
@@ -464,7 +353,7 @@ async function startSimulado(cfg){
 function startSimTimer(){ if (SIM.timer) clearInterval(SIM.timer); SIM.timer = setInterval(()=> { SIM.timeLeft--; const m=Math.floor(SIM.timeLeft/60); const s=SIM.timeLeft%60; document.getElementById('simTimerArea').innerText = `Tempo restante: ${m}:${String(s).padStart(2,'0')}`; if (SIM.timeLeft<=0){ clearInterval(SIM.timer); finishSimulado(); } },1000); }
 function renderSimuladoQuestion(){ const q=SIM.pool[SIM.idx]; if(!q){ finishSimulado(); return; } document.getElementById('simArea').innerHTML = `<div style="white-space:pre-wrap">${q_text(q)}</div><div id="simOpts" style="margin-top:8px" class="opts"></div>`; const opts = document.getElementById('simOpts'); ['A','B','C','D'].forEach(letter=>{ const txt=q_option(q,letter); if(!txt) return; const b=document.createElement('button'); b.className='opt'; b.innerText = `${letter}) ${txt}`; b.onclick = ()=> { SIM.answers[SIM.idx]=letter; Array.from(opts.querySelectorAll('button.opt')).forEach(bt=> bt.style.opacity=0.6); b.style.opacity=1; setTimeout(()=>{ if (SIM.idx < SIM.pool.length-1){ SIM.idx++; renderSimuladoQuestion(); } else finishSimulado(); },250); }; opts.appendChild(b); }); }
 function finishSimulado(){ if (SIM.timer){ clearInterval(SIM.timer); SIM.timer=null; } const total=SIM.pool.length; let sc=0; const details=[]; for (let i=0;i<total;i++){ const q=SIM.pool[i]; const chosen=SIM.answers[i]; const correct=(q.correta||q.resposta||'').toString().substr(0,1).toUpperCase(); const ok = chosen && chosen.toUpperCase()===correct; if(ok) sc++; details.push({id:q.id||i+1,question:q_text(q),chosen:chosen||null,correct:correct||null,ok}); } const pct=Math.round((sc/total)*100); document.getElementById('simArea').innerHTML = `<div>Resultado: ${sc}/${total} (${pct}%)</div><div style="margin-top:8px"><button class="btn primary" onclick="saveLocalResult({score:${sc},total:${total},pct:${pct},details:${JSON.stringify(details)},topic:'${SIM.config.topic}',timed:${SIM.config.timed},date:new Date().toISOString()})">Salvar local</button> <button class="btn" onclick="reviewSimulado(${JSON.stringify(JSON.stringify(details))})">Rever erros</button></div>`; saveLocalResult({score:sc,total:total,pct:pct,mode:'simulado',date:new Date().toISOString(),topic:SIM.config.topic}); }
-function reviewSimulado(jsonStr){ try { const details = JSON.parse(JSON.parse(jsonStr)); const wrong = details.filter(d=>!d.ok); if (!wrong.length){ alert('Nenhum erro :-)'); return; } SIM.pool = wrong.map(w=> ({question:w.question, id:w.id}) ); SIM.idx=0; renderSimuladoQuestion(); go('sim'); } catch(e){ console.error(e); alert('Erro ao revisar.'); } }
+function reviewSimulado(jsonStr){ try { const details = JSON.parse(JSON.parse(jsonStr)); const wrong = details.filter(d=>!d.ok); if (!wrong.length){ alert('Nenhum erro :-)'); return; } SIM.pool = wrong.map(w=> ({question:w.question, id:w.id}) ); SIM.idx = 0; renderSimuladoQuestion(); go('sim'); } catch(e){ console.error(e); alert('Erro ao revisar.'); } }
 
 /* HISTORY */
 function saveLocalResult(obj){ const key='gcm_history_v1'; const arr=JSON.parse(localStorage.getItem(key)||'[]'); arr.unshift(obj); localStorage.setItem(key, JSON.stringify(arr.slice(0,200))); alert('Resultado salvo localmente.'); renderHistory(); }
@@ -486,7 +375,8 @@ function go(target){ document.querySelectorAll('.page').forEach(p => p.classList
   if (localStorage.getItem(SOUND_KEY) === null) localStorage.setItem(SOUND_KEY,'1');
   updateSoundBtn();
   getDeviceId();
-  checkServerDemoOnLoad();
+  // registra demo automático no servidor (4 horas)
+  registerDemoServerClient();
   document.getElementById('quizSizeLabel').innerText = TEMPLATE_QUIZ_SIZE || 20;
   go('home');
 })();
