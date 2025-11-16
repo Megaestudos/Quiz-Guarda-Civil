@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-  <title>Guarda Civil — Plataforma (Demo automática 4h)</title>
+  <title>Guarda Civil — Plataforma de Estudos (Demo automática 4h)</title>
   <meta name="theme-color" content="#1e3c72"/>
   <style>
     :root{
@@ -15,55 +15,90 @@
       --btn-padding:10px 14px; --action-height:48px; --base-font-size:17px;
     }
     html,body{height:100%;margin:0;padding:0;font-size:var(--base-font-size);}
-    body{ font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial; background:linear-gradient(135deg,var(--bg1),var(--bg2)); color:#fff; display:flex; align-items:center; justify-content:center; padding:env(safe-area-inset-top) 12px calc(env(safe-area-inset-bottom)+12px) 12px; -webkit-font-smoothing:antialiased;}
+    body{
+      font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial;
+      background:linear-gradient(135deg,var(--bg1),var(--bg2));
+      color:#fff; display:flex; align-items:center; justify-content:center;
+      padding:env(safe-area-inset-top) 12px calc(env(safe-area-inset-bottom)+12px) 12px;
+      -webkit-font-smoothing:antialiased;
+    }
     .app{ width:100%; max-width:980px; display:flex; flex-direction:column; gap:12px; }
+
     .card{ background:var(--card-bg); border-radius:14px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,0.28); }
-    .header{ display:flex; justify-content:space-between; align-items:center; gap:10px; z-index:30; }
-    .header > div:first-child{ flex:1 1 auto; min-width:0; }
-    .title{ font-size:clamp(20px,6vw,30px); margin:0; font-weight:800; line-height:1.05; }
+
+    /* HEADER */
+    .header{ display:flex; justify-content:space-between; align-items:center; gap:10px; z-index:30; padding-right:8px; }
+    .header > .head-left { flex:1 1 auto; min-width:0; display:flex; gap:12px; align-items:center; }
+    .title { font-size:clamp(20px,6vw,30px); margin:0; font-weight:800; line-height:1.02; display:flex; align-items:center; gap:10px; white-space:normal; }
+    .title-icon { font-size:1.12em; display:inline-flex; align-items:center; justify-content:center; }
     .subtitle{ font-size:14px; color:#e6f7f0; margin-top:6px; }
-    .controls{ display:flex; gap:8px; align-items:center; }
+    .controls{ display:flex; gap:8px; align-items:center; flex:0 0 auto; }
+
+    /* buttons */
     .btn{ background:transparent;border:1px solid rgba(255,255,255,0.12); color:#fff;padding:var(--btn-padding); border-radius:10px; font-weight:700; cursor:pointer; height:var(--action-height); min-width:84px; display:inline-flex; align-items:center; justify-content:center; gap:8px; }
     .primary{ background:linear-gradient(90deg,var(--accent),var(--accent-2)); color:#012; border:none; box-shadow:0 6px 18px rgba(0,0,0,0.14); }
     .action-btn{ height:var(--action-height); padding:0 14px; font-size:16px; border-radius:10px; }
     .small{ font-size:15px; color:#dfeff5; }
     .small-muted{ font-size:14px; color:#cfeee3; }
-    .pages{ min-height:360px; } .page{ display:none; } .page.active{ display:block; }
+
+    .pages{ min-height:360px; }
+    .page{ display:none; }
+    .page.active{ display:block; }
+
     .grid{ display:grid; gap:12px; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); }
     .card-small{ padding:12px; border-radius:12px; background:rgba(255,255,255,0.03); }
+
+    /* flashcards */
     .flashcard{ perspective:1000px; cursor:pointer; }
     .flash-inner{ transition: transform .5s; transform-style:preserve-3d; position:relative; min-height:140px; }
     .flash-front,.flash-back{ backface-visibility:hidden; position:absolute; inset:0; border-radius:10px; padding:14px; display:flex; flex-direction:column; justify-content:center; }
     .flash-front{ background:rgba(255,255,255,0.02); color:#fff; }
     .flash-back{ transform:rotateY(180deg); background:rgba(0,0,0,0.12); color:#fff; white-space:pre-wrap; }
     .flash-inner.flipped{ transform:rotateY(180deg); }
+
+    /* quiz */
     .opts{ display:grid; gap:10px; grid-template-columns:1fr 1fr; margin-top:8px; }
     button.opt{ padding:12px; min-height:72px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); background:#fff; color:#123; font-weight:800; cursor:pointer; text-align:left; transition: transform .08s ease, box-shadow .12s ease, border-color .12s ease, background .12s ease; font-size:16px; }
     .opt.correct{ background:#e9fff2; border-color:#2fa764; color:#064; box-shadow:0 8px 20px rgba(47,167,100,0.06); }
     .opt.wrong{ background:#fff0f0; border-color:#ff6b6b; color:#6b1010; box-shadow:0 8px 20px rgba(255,107,107,0.06); }
+
     .explain{ margin-top:12px; padding:12px; background:rgba(255,255,255,0.04); border-radius:10px; color:#fff; }
-    #question{ font-size:clamp(18px,2.6vw,22px); } /* aumento de fonte das perguntas */
+
+    /* bigger question font */
+    #question{ font-size:clamp(18px,2.6vw,22px); }
+
+    /* floating home button */
     .floating-home{ position:fixed; right:14px; bottom:14px; z-index:60; border-radius:12px; padding:10px 12px; background:linear-gradient(90deg,var(--accent),var(--accent-2)); color:#012; font-weight:900; box-shadow:0 10px 30px rgba(0,0,0,0.28); cursor:pointer; }
+
+    /* responsive tweaks so title not hidden on phones */
     @media (max-width:520px){
       .header{ flex-wrap:wrap; align-items:center; }
-      .header > div:first-child{ order:1; flex:1 1 100%; min-width:0; }
-      .controls{ order:2; flex:1 1 100%; display:flex; gap:8px; justify-content:space-between; align-items:center; margin-top:8px; }
-      .title{ font-size:20px; white-space:normal; }
+      .header > .head-left{ order:1; flex:1 1 100%; min-width:0; display:flex; flex-direction:column; align-items:flex-start; gap:6px; }
+      .controls{ order:2; flex:1 1 100%; display:flex; gap:8px; justify-content:flex-end; align-items:center; margin-top:6px; }
+      .title{ font-size:18px; white-space:normal; }
+      .subtitle{ font-size:13px; }
       .opts{ grid-template-columns:1fr; }
       .btn{ height:44px; padding:8px 10px; font-size:14px; }
       button.opt{ font-size:17px; min-height:68px; }
+      .title-icon{ font-size:1.2em; }
     }
   </style>
 </head>
 <body>
   <div class="app">
     <div class="card header" role="banner">
-      <div>
-        <h1 class="title">Guarda Civil — Plataforma</h1>
-        <div class="subtitle">Simulados • Flashcards • Quiz • Resultados</div>
+      <div class="head-left">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="title-icon" aria-hidden="true">👮‍♂️</span>
+          <div>
+            <h1 class="title" style="margin:0">Guarda Civil — Plataforma de Estudos</h1>
+            <div class="subtitle">Simulados • Flashcards • Quiz • Resultados</div>
+          </div>
+        </div>
       </div>
+
       <div class="controls" role="toolbar" aria-label="Controles">
-        <div class="small-muted">Acesso: <strong id="accessLabel">—</strong></div>
+        <div class="small-muted" id="accessLabel">—</div>
         <button class="btn" id="soundToggle">🔊 On</button>
       </div>
     </div>
@@ -163,7 +198,6 @@ function updateAccessLabel(){
 async function registerDemoServerClient(){
   try {
     const deviceId = getDeviceId();
-    // Call registerDemoServer (server will return existing expiry if active)
     const res = await fetch(`${SCRIPT_URL}?action=registerDemoServer&deviceId=${encodeURIComponent(deviceId)}&hours=${encodeURIComponent(DEMO_HOURS)}`, {cache:'no-store'});
     const js = await res.json();
     if (js && js.ok && js.expiresAt){
@@ -181,7 +215,7 @@ async function registerDemoServerClient(){
   updateAccessLabel();
 }
 
-/* ========== CARDS / QUIZ / SIMULADOS (idem, com pequenas adaptações) ========== */
+/* ========== CARDS / QUIZ / SIMULADOS ========== */
 async function renderCards(){
   const container = document.getElementById('cardsContainer');
   container.innerHTML = '<div class="small-muted">Carregando cartões...</div>';
@@ -221,7 +255,7 @@ async function renderCards(){
   }
 }
 
-/* QUIZ */
+/* QUIZ (mantido) */
 let POOL = [], currentIndex = 0, score = 0, quizStarted = false;
 const topicSelect = document.getElementById('topicSelect');
 document.getElementById('loadTopicBtn').addEventListener('click', ()=> loadTopicQuestions(topicSelect.value));
@@ -311,7 +345,7 @@ function finishQuiz(){
 }
 function restartQuiz(){ if (topicSelect && topicSelect.value) loadTopicQuestions(topicSelect.value); else loadTopicQuestions('Todos'); }
 
-/* SIMULADOS e HISTORY implementados como antes (mantidos) */
+/* SIMULADOS and HISTORY (kept) */
 let SIM = { pool:[], idx:0, answers:[], timer:null, timeLeft:0, config:null };
 async function showSimuladoSetup(){
   go('sim');
@@ -359,7 +393,7 @@ function reviewSimulado(jsonStr){ try { const details = JSON.parse(JSON.parse(js
 function saveLocalResult(obj){ const key='gcm_history_v1'; const arr=JSON.parse(localStorage.getItem(key)||'[]'); arr.unshift(obj); localStorage.setItem(key, JSON.stringify(arr.slice(0,200))); alert('Resultado salvo localmente.'); renderHistory(); }
 function renderHistory(){ const key='gcm_history_v1'; const arr=JSON.parse(localStorage.getItem(key)||'[]'); const container=document.getElementById('historyList'); if(!arr||!arr.length){ container.innerHTML='<div class="small-muted">Nenhum histórico salvo.</div>'; return; } container.innerHTML=''; arr.forEach(r=>{ const div=document.createElement('div'); div.className='card-small'; div.style.marginBottom='8px'; div.innerHTML=`<div><strong>${r.mode||'simulado'}</strong> — ${r.score}/${r.total} (${r.pct}%) <span style="float:right;font-size:12px;color:#dfeff5">${r.date? new Date(r.date).toLocaleString():''}</span></div><div class="small-muted" style="margin-top:6px">${r.topic? 'Tópico: '+r.topic : ''}</div>`; container.appendChild(div); }); }
 
-/* UTIL compat */
+/* UTIL compat functions */
 function q_text(q){ if(!q) return ''; return q.enunciado || q.pergunta || q.question || q.text || q.Question || ''; }
 function q_topic(q){ if(!q) return ''; return q.assunto || q.materia || q.topico || q.topic || ''; }
 function q_expl(q){ if(!q) return ''; return q.explicacao || q.explanation || q.resposta || q.explanation || ''; }
