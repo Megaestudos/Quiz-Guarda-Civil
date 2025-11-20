@@ -65,6 +65,38 @@
     .overlay-card p{ margin:8px 0 14px 0; color:#d5f5e7 }
     .overlay-card .linkbtn{ display:inline-block; padding:10px 14px; border-radius:10px; background:linear-gradient(90deg,var(--accent), #2fb6ff); color:#012; font-weight:800; text-decoration:none; }
     @media (max-width:520px){ .header { flex-wrap:wrap; align-items:center; } .header > div:first-child { order: 1; flex: 1 1 100%; min-width:0; } .controls { order: 2; flex: 1 1 100%; display:flex; justify-content:flex-start; gap:6px; margin-top:8px; } .title { white-space:normal; font-size:16px; } .controls .icon-btn { width:34px; height:34px; } .controls .btn { padding:6px 8px; font-size:13px; } .scale-label { min-width:46px; font-size:13px; text-align:center; } .pages { padding-bottom: 92px; } .tabs { margin-top:18px; margin-bottom: calc(env(safe-area-inset-bottom) + 12px); } }
+/* --- ESTILO DOS BOTÕES A, B, C, D DO QUIZ --- */
+.quiz-option {
+    display: block;
+    width: 100%;
+    padding: 14px;
+    margin: 8px 0;
+    font-size: 18px;
+    font-weight: 600;
+    border-radius: 12px;
+    border: none;
+    background: #1565D8;
+    color: white;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s;
+}
+
+.quiz-option:hover {
+    background: #0f4cad;
+}
+
+.quiz-option:active {
+    transform: scale(0.97);
+}
+
+.quiz-option.correct {
+    background: #1E8F3A !important;
+}
+
+.quiz-option.wrong {
+    background: #C62828 !important;
+}
   </style>
 </head>
 <body>
