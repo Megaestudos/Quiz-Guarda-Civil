@@ -19,7 +19,10 @@
     .btn { background:transparent;border:1px solid rgba(255,255,255,0.12); color:#fff;padding:8px 10px;border-radius:10px;font-weight:700; cursor:pointer; }
     .icon-btn { width:40px; height:40px; display:inline-flex; align-items:center; justify-content:center; border-radius:8px; border:1px solid rgba(255,255,255,0.08); background:transparent; color:#fff; cursor:pointer; }
     .scale-label { min-width:62px; text-align:center; font-weight:800; }
-    .pages { min-height:340px; }
+
+    /* ADICIONEI padding-bottom para garantir que conteúdo não seja coberto pela barra de abas */
+    .pages { min-height:340px; padding-bottom: 72px; }
+
     .page { display:none; }
     .page.active { display:block; animation: fadeIn .22s ease; }
     @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
@@ -40,7 +43,9 @@
     .explain { margin-top:12px; padding:12px; background:rgba(255,255,255,0.04); border-radius:10px; color:#fff; }
     .final { text-align:center; padding:12px; }
     .record { margin-top:8px; font-size:14px; color:#e6f7f0; }
-    .tabs { display:flex; justify-content:space-around; gap:6px; margin-top:8px; }
+
+    /* leve deslocamento pra baixo da barra de abas + z-index pra ficar acima do conteúdo */
+    .tabs { display:flex; justify-content:space-around; gap:6px; margin-top:16px; margin-bottom: calc(env(safe-area-inset-bottom) + 8px); position: relative; z-index: 20; }
     .tabbtn { flex:1; padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:#fff;font-weight:800;cursor:pointer;text-align:center; }
     .tabbtn.active{ background: rgba(255,255,255,0.06); }
     .small { font-size:13px; color:#dfeff5; }
@@ -74,6 +79,9 @@
       .controls .icon-btn { width:34px; height:34px; }
       .controls .btn { padding:6px 8px; font-size:13px; }
       .scale-label { min-width:46px; font-size:13px; text-align:center; }
+      /* em telas pequenas, dá um pouquinho mais de folga na parte de baixo */
+      .pages { padding-bottom: 92px; }
+      .tabs { margin-top:18px; margin-bottom: calc(env(safe-area-inset-bottom) + 12px); }
     }
     @media (max-width:420px){ .title { font-size:15px; } .controls { justify-content:flex-start; gap:6px; } }
     @media (max-width:520px){ .opts{ grid-template-columns:1fr; } }
@@ -303,19 +311,6 @@
     const now = Date.now(); const expires = new Date(now + DEMO_DURATION_HOURS*3600*1000);
     localStorage.setItem(DEMO_LOCAL_KEY, JSON.stringify({startedAt: new Date(now).toISOString(), expiresAt: expires.toISOString()}));
     setDemoState(expires, 'local');
-  }
-
-  function setDemoState(expiresDate, source){
-    demoSource = source || 'local';
-    demoExpiresAt = expiresDate instanceof Date ? expiresDate : new Date(expiresDate);
-    if (demoTimer) clearInterval(demoTimer);
-    const update = ()=>{
-      const now = new Date(); const rem = demoExpiresAt - now;
-      if (rem <= 0) { clearInterval(demoTimer); demoTimer = null; showDemoBanner(0); lockApp(); return; }
-      showDemoBanner(rem);
-    };
-    update();
-    demoTimer = setInterval(update, 1000);
   }
 
   /* ===== ALTERAÇÃO FEITA AQUI: lockApp agora mostra APENAS o link de compra (sem "Tentar reconectar") ===== */
@@ -612,7 +607,7 @@
   (function init(){
     const cssScale = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--card-scale')) || 1.10;
     if (localStorage.getItem(SCALE_KEY) === null) localStorage.setItem(SCALE_KEY, cssScale.toFixed(2));
-    if (window.innerWidth <= 520) localStorage.setItem(SCALE_KEY, '1.05');
+    if (window.innerWidth <= 520) localStorage.setItem(SCALE_KEY, '1.10');
     setScale(readSavedScale());
 
     // start demo check (server-first, per-device)
