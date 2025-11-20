@@ -63,7 +63,7 @@
     .flash-inner.flipped { transform: rotateY(180deg); }
 
     /* demo banner + overlay */
-    .demo-banner { background: rgba(0,0,0,0.2); padding:6px 10px; border-radius:8px; font-weight:800; display:inline-flex; gap:8px; align-items:center; }
+    .demo-banner { background: rgba(0,0,0,0.2); padding:6px 10px; border-radius:8px; font-weight:800; display:inline-flex; gap:8px; align-items:center; position:relative; z-index:30; }
     .demo-remaining { font-size:13px; color:#dfffe8; }
     .overlay-lock { position:fixed; inset:0; background:rgba(3,6,12,0.7); display:flex; align-items:center; justify-content:center; z-index:9999; }
     .overlay-card { background:#081a2b; padding:20px; border-radius:12px; box-shadow: 0 8px 30px rgba(0,0,0,0.6); max-width:420px; text-align:center; color:#fff; }
@@ -186,7 +186,7 @@
   const PURCHASE_URL = 'https://seu-site-de-venda.com/checkout'; // <-- substitua pelo link de compra real
   const DEVICE_ID_KEY = 'quiz_device_id';
   const DEMO_LOCAL_KEY = 'quiz_demo_local'; // fallback quando servidor indisponível
-  const DEMO_DURATION_HOURS = 24.0; // **0.5 horas = 30 minutos** (editar aqui para alterar duração)
+  const DEMO_DURATION_HOURS = 24.0; // demo de 24 horas
 
   /* =========== estado e chaves =========== */
   let POOL = []; let currentIndex = 0; let score = 0; let errors = []; let quizStarted = false;
@@ -249,17 +249,85 @@
     if (target === 'quiz') { if (!quizStarted) showTopicSelection(); }
   };
 
+  /* ===== ROBUST SHOW / SET DEMO STATE (PATCH) ===== */
+
   function showDemoBanner(remainingMs){
     const banner = document.getElementById('demoBanner');
-    if (!banner) return;
-    if (remainingMs <= 0) { banner.style.display='none'; return; }
-    banner.style.display='inline-flex';
-    document.getElementById('demoRemaining').innerText = formatRemaining(remainingMs);
+    const remEl = document.getElementById('demoRemaining');
+    if (!banner || !remEl) {
+      console.warn('showDemoBanner: elementos não encontrados');
+      return;
+    }
+
+    // normalize number
+    const msNum = Number(remainingMs);
+    if (!Number.isFinite(msNum) || msNum <= 0) {
+      // hide when zero/invalid
+      banner.style.display = 'none';
+      remEl.innerText = '00:00:00';
+      return;
+    }
+
+    banner.style.display = 'inline-flex';
+    remEl.innerText = formatRemaining(Math.max(0, Math.floor(msNum)));
+  }
+
+  function setDemoState(expiresDate, source){
+    demoSource = source || 'local';
+
+    // parse flexível
+    let parsed = null;
+    if (expiresDate instanceof Date && !isNaN(expiresDate)) parsed = expiresDate;
+    else {
+      const s = String(expiresDate || '');
+      const parsedISO = Date.parse(s);
+      if (!isNaN(parsedISO)) parsed = new Date(parsedISO);
+      else {
+        const n = Number(expiresDate);
+        if (!isNaN(n)) parsed = new Date(n);
+      }
+    }
+
+    if (!parsed || isNaN(parsed)) {
+      console.warn('setDemoState: expiresAt inválido:', expiresDate);
+      if (demoTimer) { clearInterval(demoTimer); demoTimer = null; }
+      showDemoBanner(0);
+      return;
+    }
+
+    demoExpiresAt = parsed;
+
+    // store minimal local fallback so UI can recover if server unreachable later
+    try {
+      localStorage.setItem(DEMO_LOCAL_KEY, JSON.stringify({ startedAt: new Date().toISOString(), expiresAt: demoExpiresAt.toISOString(), source: demoSource }));
+    } catch (e) { console.warn('Não foi possível gravar demo local:', e); }
+
+    if (demoTimer) clearInterval(demoTimer);
+
+    const update = () => {
+      const now = new Date();
+      const rem = demoExpiresAt - now;
+      if (!Number.isFinite(rem) || rem <= 0) {
+        if (demoTimer) { clearInterval(demoTimer); demoTimer = null; }
+        showDemoBanner(0);
+        // bloqueia app quando expirar
+        lockApp();
+        return;
+      }
+      showDemoBanner(rem);
+    };
+
+    // run immediately + schedule
+    update();
+    demoTimer = setInterval(update, 1000);
   }
 
   function formatRemaining(ms){
-    if (ms <= 0) return '00:00:00';
-    const s = Math.floor(ms/1000); const h = Math.floor(s/3600); const m = Math.floor((s%3600)/60); const sec = s%60;
+    if (!Number.isFinite(ms) || ms <= 0) return '00:00:00';
+    const s = Math.floor(ms/1000);
+    const h = Math.floor(s/3600);
+    const m = Math.floor((s%3600)/60);
+    const sec = s%60;
     return `${pad(h)}:${pad(m)}:${pad(sec)}`;
   }
   function pad(n){ return n.toString().padStart(2,'0'); }
@@ -279,11 +347,14 @@
   async function checkAndStartDemo(){
     // server-first but per-device: envia deviceId ao servidor
     const deviceId = await ensureDeviceId();
+    console.log('checkAndStartDemo -> deviceId:', deviceId, 'SCRIPT_URL:', SCRIPT_URL);
     try {
       const js = await getDemoStatusServer(deviceId);
+      console.log('getDemoStatus server result:', js);
       if (js && js.ok){
         if (js.demoActive && js.expiresAt){
-          setDemoState(new Date(js.expiresAt), 'server');
+          // aceita string ou timestamp
+          setDemoState(js.expiresAt, 'server');
           return;
         }
         if (js.used){
@@ -293,8 +364,10 @@
         }
         // tentar criar demo para esse device (server)
         const start = await startDemoServer(deviceId, DEMO_DURATION_HOURS);
+        console.log('startDemo server result:', start);
         if (start && start.ok && start.expiresAt){
-          setDemoState(new Date(start.expiresAt), 'server');
+          // persist fallback local também
+          setDemoState(start.expiresAt, 'server');
           return;
         }
       }
@@ -303,14 +376,24 @@
     }
 
     // fallback local (cliente)
-    const local = JSON.parse(localStorage.getItem(DEMO_LOCAL_KEY) || 'null');
-    if (local && local.expiresAt){
-      setDemoState(new Date(local.expiresAt), 'local');
-      return;
+    try {
+      const localRaw = localStorage.getItem(DEMO_LOCAL_KEY);
+      const local = localRaw ? JSON.parse(localRaw) : null;
+      if (local && local.expiresAt){
+        // tenta parse seguro
+        setDemoState(local.expiresAt, 'local');
+        return;
+      }
+    } catch(e){
+      console.warn('Erro ao ler demo local:', e);
     }
-    const now = Date.now(); const expires = new Date(now + DEMO_DURATION_HOURS*3600*1000);
-    localStorage.setItem(DEMO_LOCAL_KEY, JSON.stringify({startedAt: new Date(now).toISOString(), expiresAt: expires.toISOString()}));
-    setDemoState(expires, 'local');
+
+    const now = Date.now();
+    const expires = new Date(now + DEMO_DURATION_HOURS*3600*1000);
+    try {
+      localStorage.setItem(DEMO_LOCAL_KEY, JSON.stringify({ startedAt: new Date(now).toISOString(), expiresAt: expires.toISOString(), source: 'local' }));
+    } catch(e){ console.warn('Não foi possível salvar demo local:', e); }
+    setDemoState(expires.toISOString(), 'local');
   }
 
   /* ===== ALTERAÇÃO FEITA AQUI: lockApp agora mostra APENAS o link de compra (sem "Tentar reconectar") ===== */
@@ -319,7 +402,7 @@
     if (document.getElementById('overlayLock')) return;
     const permanent = !!(opts && opts.permanent);
     const title = (opts && opts.title) ? opts.title : (permanent ? 'Acesso bloqueado' : 'Demo expirado');
-    const msg = (opts && opts.message) ? opts.message : (permanent ? 'A demo já foi utilizada neste dispositivo.' : `Sua sessão demo de ${Math.round(DEMO_DURATION_HOURS*60)} minutos expirou e o aplicativo foi bloqueado.`);
+    const msg = (opts && opts.message) ? opts.message : (permanent ? 'A demo já foi utilizada neste dispositivo.' : `Sua sessão demo expirou e o aplicativo foi bloqueado.`);
     const overlay = document.createElement('div'); overlay.id = 'overlayLock'; overlay.className = 'overlay-lock';
     const card = document.createElement('div'); card.className='overlay-card';
     // Somente o link de compra — removido o botão "Tentar reconectar"
